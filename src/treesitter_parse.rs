@@ -24,3 +24,21 @@ pub fn extract_functions(node: Node, source: &str) {
         extract_functions(child, source);
     }
 }
+
+pub fn extract_function_headers(node: Node, source: &str) {
+    if node.kind() == "function_item" {
+        let function_header_start = node.start_byte();
+        let body = node
+            .child_by_field_name("body")
+            .expect("Body does not exist");
+        let function_header_end = body.start_byte();
+        let function_header = &source[function_header_start..function_header_end];
+        println!("{}", function_header.trim());
+    }
+
+    let mut cursor = node.walk();
+
+    for child in node.children(&mut cursor) {
+        extract_function_headers(child, source);
+    }
+}
