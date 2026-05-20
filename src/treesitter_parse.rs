@@ -1,6 +1,7 @@
 use std::fs;
+use std::path::PathBuf;
 use tree_sitter::{Node, Parser};
-pub fn parser_demo(path: &str) -> tree_sitter::Tree {
+pub fn parser_demo(path: &PathBuf) -> tree_sitter::Tree {
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_rust::LANGUAGE.into())
