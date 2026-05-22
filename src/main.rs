@@ -29,16 +29,15 @@ fn main() -> anyhow::Result<()> {
             let spec = language_specs::spec_for_file(&path)?;
             let tree = treesitter_parse::parser_demo(&path, &spec);
             let source_code = fs::read_to_string(&path).expect("Failed to read source file");
-            let headers =
-                treesitter_parse::extract_function_headers(tree.root_node(), &source_code, &spec);
-            let header_embeddings =
-                embeddings_generator::create_function_header_embeddings(headers)?;
+            let functions =
+                treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
+            let function_embeddings = embeddings_generator::create_function_embedding(functions)?;
             let query_vector = embeddings_generator::create_embedding(&keywords)?;
 
             let mut header_similarity_vector = Vec::new();
-            for embedding_struct in header_embeddings {
+            for embedding_struct in function_embeddings {
                 let cosine_result =
-                    cosine_similarity(&embedding_struct.header_embedding, &query_vector);
+                    cosine_similarity(&embedding_struct.function_embedding, &query_vector);
                 header_similarity_vector.push((embedding_struct.header, cosine_result));
             }
 

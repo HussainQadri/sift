@@ -1,18 +1,20 @@
+use crate::treesitter_parse::ExtractedFunction;
 use fastembed::TextEmbedding;
 
-pub fn create_function_header_embeddings(
-    headers: Vec<String>,
+pub fn create_function_embedding(
+    functions: Vec<ExtractedFunction>,
 ) -> anyhow::Result<Vec<FunctionEmbedding>> {
     let mut model = TextEmbedding::try_new(Default::default())?;
 
-    let function_header_embeddings = model.embed(&headers, None)?;
+    let function_sources: Vec<&String> = functions.iter().map(|function| &function.source).collect();
+    let function_embeddings = model.embed(function_sources, None)?;
 
-    let result = headers
+    let result = functions
         .into_iter()
-        .zip(function_header_embeddings)
-        .map(|(header, embedding)| FunctionEmbedding {
-            header,
-            header_embedding: embedding,
+        .zip(function_embeddings)
+        .map(|(function, embedding)| FunctionEmbedding {
+            header: function.header,
+            function_embedding: embedding,
         })
         .collect();
     Ok(result)
@@ -20,7 +22,7 @@ pub fn create_function_header_embeddings(
 
 pub struct FunctionEmbedding {
     pub(crate) header: String,
-    pub(crate) header_embedding: Vec<f32>,
+    pub(crate) function_embedding: Vec<f32>,
 }
 
 pub fn create_embedding(keywords: &String) -> anyhow::Result<Vec<f32>> {
