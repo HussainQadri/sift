@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::{fs, path::Path};
-use tree_sitter::{Node, Parser};
+use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 pub fn parser_demo(path: &PathBuf, spec: &LanguageSpec) -> tree_sitter::Tree {
     let mut parser = Parser::new();
     parser
@@ -13,34 +13,24 @@ pub fn parser_demo(path: &PathBuf, spec: &LanguageSpec) -> tree_sitter::Tree {
     tree
 }
 
-pub fn extract_functions(node: Node, source: &str) {
-    if node.kind() == "function_item" {
-        let function_text = node.utf8_text(source.as_bytes()).unwrap();
-        println!("{}", function_text);
-    }
+pub fn extract_functions(node: Node, source: &str, spec: &LanguageSpec) {
+    let query = match Query::new(&spec.language, spec.function_header_query) {
+        Ok(query) => query,
+        Err(err) => {
+            eprintln!("Failed to create the tree-sitter query: {}", err);
+            return;
+        }
+    };
 
-    let mut cursor = node.walk();
+    let mut cursor = QueryCursor::new();
 
-    for child in node.children(&mut cursor) {
-        extract_functions(child, source);
-    }
-}
+    let mut matches = cursor.matches(&query, node, source.as_bytes());
 
-pub fn extract_function_headers(node: Node, source: &str, spec: &LanguageSpec) {
-    if node.kind() == spec.function_header_query {
-        let function_header_start = node.start_byte();
-        let body = node
-            .child_by_field_name("body")
-            .expect("Body does not exist");
-        let function_header_end = body.start_byte();
-        let function_header = &source[function_header_start..function_header_end];
-        println!("{}", function_header.trim());
-    }
-
-    let mut cursor = node.walk();
-
-    for child in node.children(&mut cursor) {
-        extract_function_headers(child, source, &spec);
+    while let Some(item) = matches.next() {
+        for capture in item.captures {
+            let result = capture.node.utf8_text(source.as_bytes()).unwrap_or("");
+            println!("{}", result);
+        }
     }
 }
 
@@ -53,8 +43,7 @@ pub fn rust_spec() -> LanguageSpec {
     LanguageSpec {
         language: tree_sitter_rust::LANGUAGE.into(),
         function_header_query: r#"
-              (function_item
-                  body: (_) @body) @function
+              (function_item) @function
           "#,
     }
 }
@@ -63,8 +52,7 @@ pub fn python_spec() -> LanguageSpec {
     LanguageSpec {
         language: tree_sitter_python::LANGUAGE.into(),
         function_header_query: r#"
-              (function_definition
-                  body: (_) @body) @function
+              (function_definition) @function
           "#,
     }
 }

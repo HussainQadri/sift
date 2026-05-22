@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
             let spec = treesitter_parse::spec_for_file(&path)?;
             let tree = treesitter_parse::parser_demo(&path, &spec);
             let source_code = fs::read_to_string(&path).expect("Failed to read source file");
-            treesitter_parse::extract_function_headers(tree.root_node(), &source_code, &spec);
+            treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
         }
     }
 
