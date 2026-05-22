@@ -17,12 +17,21 @@ pub fn python_spec() -> LanguageSpec {
           "#,
     }
 }
+pub fn cpp_spec() -> LanguageSpec {
+    LanguageSpec {
+        language: tree_sitter_cpp::LANGUAGE.into(),
+        function_header_query: r#"
+              (function_definition) @function
+          "#,
+    }
+}
 pub fn spec_for_file(path: &PathBuf) -> anyhow::Result<LanguageSpec> {
     let extension_string = path.extension().and_then(|ext| ext.to_str());
 
     match extension_string {
         Some("rs") => Ok(rust_spec()),
         Some("py") => Ok(python_spec()),
+        Some("cpp") => Ok(cpp_spec()),
         Some(ext) => anyhow::bail!("Unsupported file extension"),
         None => anyhow::bail!("File has no extension"),
     }
