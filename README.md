@@ -42,9 +42,13 @@ Current language specs:
 - Python: `.py`
 - C++: `.cpp`
 
-## Status
+## Planned
 
-Sift currently searches one file per command and creates embeddings during that search run. It does not yet build or persist an index.
+The next major step is to add an indexing layer so that embeddings can be generated once and forgotten about.
 
-Ranking is currently vector similarity only. Code-aware ranking signals such as identifier matches, acronym handling, and token overlap are likely next steps.
+Planned indexing improvements:
+- Persistent local index of extracted function/source code records.
+- Store each function header, source location, language and embedding **once**.
+- Add approximate nearest-neighbour (ANN) search for faster retrieval over larger codebases.
+- Support automatic re-indexing when source files change (No repeated `sift ingest`).
 
