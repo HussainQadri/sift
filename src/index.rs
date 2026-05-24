@@ -8,6 +8,7 @@ pub struct IndexedFunction {
     pub(crate) path: String,
     pub(crate) header: String,
     pub(crate) source: String,
+    pub(crate) line_number: usize,
     pub(crate) embedding: Vec<f32>,
 }
 
@@ -29,6 +30,7 @@ pub fn create_indexed_functions(
             path: path.display().to_string(),
             header: function.header,
             source: function.source,
+            line_number: function.line_number,
             embedding,
         })
         .collect();

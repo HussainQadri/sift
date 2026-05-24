@@ -6,6 +6,7 @@ use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 pub struct ExtractedFunction {
     pub(crate) header: String,
     pub(crate) source: String,
+    pub(crate) line_number: usize,
 }
 
 pub fn generate_tree(path: &PathBuf, spec: &LanguageSpec) -> tree_sitter::Tree {
@@ -55,6 +56,7 @@ pub fn extract_functions(node: Node, source: &str, spec: &LanguageSpec) -> Vec<E
             result_vector.push(ExtractedFunction {
                 header: header.trim().to_string(),
                 source: function_source.to_string(),
+                line_number: function.start_position().row + 1,
             });
         }
     }

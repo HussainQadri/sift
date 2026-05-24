@@ -40,7 +40,11 @@ fn main() -> anyhow::Result<()> {
             result.sort_by(|a, b| b.1.total_cmp(&a.1));
 
             for (indexed_function, score) in result.iter().take(5) {
-                println!("{}", indexed_function.header);
+                println!("{}: ", indexed_function.path);
+                println!(
+                    "{}: {}\n",
+                    indexed_function.line_number, indexed_function.header
+                );
             }
         }
 
