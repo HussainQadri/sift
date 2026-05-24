@@ -1,14 +1,15 @@
 use crate::language_specs::LanguageSpec;
-use std::path::PathBuf;
 use std::fs;
+use std::path::Path;
 use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 
 pub struct ExtractedFunction {
     pub(crate) header: String,
     pub(crate) source: String,
+    pub(crate) line_number: usize,
 }
 
-pub fn parser_demo(path: &PathBuf, spec: &LanguageSpec) -> tree_sitter::Tree {
+pub fn generate_tree(path: &Path, spec: &LanguageSpec) -> tree_sitter::Tree {
     let mut parser = Parser::new();
     parser
         .set_language(&spec.language)
@@ -55,6 +56,7 @@ pub fn extract_functions(node: Node, source: &str, spec: &LanguageSpec) -> Vec<E
             result_vector.push(ExtractedFunction {
                 header: header.trim().to_string(),
                 source: function_source.to_string(),
+                line_number: function.start_position().row + 1,
             });
         }
     }

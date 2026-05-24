@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 pub fn rust_spec() -> LanguageSpec {
     LanguageSpec {
@@ -25,7 +25,7 @@ pub fn cpp_spec() -> LanguageSpec {
           "#,
     }
 }
-pub fn spec_for_file(path: &PathBuf) -> anyhow::Result<LanguageSpec> {
+pub fn spec_for_file(path: &Path) -> anyhow::Result<LanguageSpec> {
     let extension_string = path.extension().and_then(|ext| ext.to_str());
 
     match extension_string {
