@@ -6,7 +6,6 @@ mod language_specs;
 mod similarity;
 mod treesitter_parse;
 use std::fs;
-use std::fs::read_dir;
 
 use crate::similarity::cosine_similarity;
 
@@ -40,7 +39,7 @@ fn main() -> anyhow::Result<()> {
             result.sort_by(|a, b| b.1.total_cmp(&a.1));
 
             for (indexed_function, score) in result.iter().take(5) {
-                println!("{}: ", indexed_function.path);
+                println!("{:.3} {}: ", score, indexed_function.path);
                 println!(
                     "{}: {}\n",
                     indexed_function.line_number, indexed_function.header
@@ -61,7 +60,7 @@ fn main() -> anyhow::Result<()> {
 
                 let spec = match language_specs::spec_for_file(&file_path) {
                     Ok(spec) => spec,
-                    Err(err) => continue,
+                    Err(_) => continue,
                 };
 
                 let tree = treesitter_parse::generate_tree(&file_path, &spec);
