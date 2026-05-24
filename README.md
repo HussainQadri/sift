@@ -1,54 +1,86 @@
 # Sift
 
-Sift is a Rust CLI prototype for semantic code search.
+Sift is a Rust semantic code search CLI. It uses Tree-sitter to extract
+functions, embeds their full source with a code-oriented model, stores those
+vectors locally, and retrieves functions from natural-language queries.
 
-Given a source file and a natural-language query, it extracts functions, embeds their full source text, ranks them against the query with cosine similarity, and prints the matching function headers.
+## Usage
 
-## Current usage
+Ingest supported source files from a directory:
 
 ```bash
-cargo run -- search <path> "<query>"
+cargo run -- ingest ./src
 ```
 
-Example:
+Search the stored index separately:
 
 ```bash
-cargo run -- search src/treesitter_parse.rs "extract functions from a syntax tree"
+cargo run -- search "load saved index records"
 ```
 
 After installing the binary:
 
 ```bash
-sift search src/treesitter_parse.rs "extract functions from a syntax tree"
+sift ingest ./src
+sift search "extract functions from a syntax tree"
 ```
 
-## Current flow
+`ingest` currently processes supported files directly inside the supplied
+directory. Recursive traversal is a planned next step.
 
-1. Parse the source file with Tree-sitter.
-2. Extract function records from the syntax tree.
-3. Keep each function header paired with its full source text.
-4. Embed full function source with `fastembed`.
-5. Embed the query string.
-6. Rank function embeddings by cosine similarity.
-7. Print the ranked function headers.
+## Current Pipeline
 
-The full function body is used for retrieval because it gives the embedding model more context than a signature alone. The header is printed to keep results compact.
+Ingestion:
 
-## Supported files
+```text
+directory
+-> source files
+-> Tree-sitter function extraction
+-> Jina code embeddings
+-> .sift/index.json
+```
 
-Current language specs:
+Search:
+
+```text
+query
+-> Jina query embedding
+-> load .sift/index.json
+-> cosine similarity against saved function embeddings
+-> print top matches with source locations
+```
+
+
+Full function source is embedded for retrieval. Results remain compact by
+printing the function header with its file path, line number, and similarity
+score.
+
+## Supported Files
 
 - Rust: `.rs`
 - Python: `.py`
 - C++: `.cpp`
 
-## Planned
+## Current Limitations
 
-The next major step is to add an indexing layer so that embeddings can be generated once and forgotten about.
+- Ingestion is not recursive yet.
+- The embedding model is currently initialized in the per-file indexing path.
+- Search performs an exact cosine scan over all saved vectors.
+- `.sift/index.json` is inspectable prototype storage, not the intended format
+  for very large indexes.
+- Ranking is semantic-only; exact identifier-aware ranking is not implemented.
 
-Planned indexing improvements:
-- Persistent local index of extracted function/source code records.
-- Store each function header, source location, language and embedding **once**.
-- Add approximate nearest-neighbour (ANN) search for faster retrieval over larger codebases.
-- Support automatic re-indexing when source files change (No repeated `sift ingest`).
+## Direction
 
+Exact cosine search is the correctness baseline. The next substantial indexing
+work is a custom HNSW approximate nearest-neighbour implementation for large
+codebases, evaluated against exhaustive search with latency and recall
+benchmarks.
+
+Planned work:
+
+- Recursively ingest codebases while ignoring generated directories.
+- Initialize the embedding model once per ingestion run and batch embeddings.
+- Add ranking/evaluation queries and identifier-aware retrieval signals.
+- Implement in-memory HNSW search and compare it against exact cosine search.
+- Replace JSON vector/graph storage with a compact persistent representation.
