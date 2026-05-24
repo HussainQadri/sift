@@ -21,6 +21,32 @@ struct Cli {
     #[command(subcommand)]
     commands: Commands,
 }
+
+fn recursive_ingest_dir(path: &std::path::PathBuf) -> anyhow::Result<Vec<index::IndexedFunction>> {
+    let mut all_indexed_functions = Vec::new();
+
+    for resource_entry_result in fs::read_dir(&path)? {
+        let entry = resource_entry_result?;
+        let file_path = entry.path();
+
+        if file_path.is_dir() {
+            let indexed_functions = recursive_ingest_dir(&file_path)?;
+            all_indexed_functions.extend(indexed_functions);
+        }
+
+        let spec = match language_specs::spec_for_file(&file_path) {
+            Ok(spec) => spec,
+            Err(_) => continue,
+        };
+
+        let tree = treesitter_parse::generate_tree(&file_path, &spec);
+        let source_code = fs::read_to_string(&file_path)?;
+        let functions = treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
+        let indexed_functions = index::create_indexed_functions(functions, &file_path)?;
+        all_indexed_functions.extend(indexed_functions);
+    }
+    Ok(all_indexed_functions)
+}
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
     match args.commands {
@@ -48,29 +74,7 @@ fn main() -> anyhow::Result<()> {
         }
 
         Commands::Ingest { path } => {
-            let mut all_indexed_functions = Vec::new();
-
-            for resource_entry_result in fs::read_dir(&path)? {
-                let entry = resource_entry_result?;
-                let file_path = entry.path();
-
-                if !file_path.is_file() {
-                    continue;
-                }
-
-                let spec = match language_specs::spec_for_file(&file_path) {
-                    Ok(spec) => spec,
-                    Err(_) => continue,
-                };
-
-                let tree = treesitter_parse::generate_tree(&file_path, &spec);
-                let source_code = fs::read_to_string(&file_path)?;
-                let functions =
-                    treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
-                let indexed_functions = index::create_indexed_functions(functions, &file_path)?;
-                all_indexed_functions.extend(indexed_functions);
-            }
-
+            let all_indexed_functions = recursive_ingest_dir(&path)?;
             index::save_index(&all_indexed_functions)?;
         }
     }
