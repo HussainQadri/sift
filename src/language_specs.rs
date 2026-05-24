@@ -41,3 +41,22 @@ pub struct LanguageSpec {
     pub(crate) language: tree_sitter::Language,
     pub(crate) function_query: &'static str,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::spec_for_file;
+    use std::path::Path;
+
+    #[test]
+    fn supported_source_extensions_have_language_specs() {
+        assert!(spec_for_file(Path::new("main.rs")).is_ok());
+        assert!(spec_for_file(Path::new("module.py")).is_ok());
+        assert!(spec_for_file(Path::new("engine.cpp")).is_ok());
+    }
+
+    #[test]
+    fn unsupported_source_extensions_are_rejected() {
+        assert!(spec_for_file(Path::new("README.md")).is_err());
+        assert!(spec_for_file(Path::new("LICENSE")).is_err());
+    }
+}

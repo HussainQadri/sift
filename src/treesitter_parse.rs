@@ -63,3 +63,26 @@ pub fn extract_functions(node: Node, source: &str, spec: &LanguageSpec) -> Vec<E
 
     result_vector
 }
+
+#[cfg(test)]
+mod tests {
+    use super::extract_functions;
+    use crate::language_specs;
+    use tree_sitter::Parser;
+
+    #[test]
+    fn rust_extraction_keeps_full_source_header_and_line_number() {
+        let source = "\nfn first() {}\n\npub fn wanted(value: i32) -> i32 {\n    value + 1\n}\n";
+        let spec = language_specs::rust_spec();
+        let mut parser = Parser::new();
+        parser.set_language(&spec.language).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+
+        let functions = extract_functions(tree.root_node(), source, &spec);
+
+        assert_eq!(functions.len(), 2);
+        assert_eq!(functions[1].header, "pub fn wanted(value: i32) -> i32");
+        assert!(functions[1].source.contains("value + 1"));
+        assert_eq!(functions[1].line_number, 4);
+    }
+}
