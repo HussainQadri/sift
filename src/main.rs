@@ -1,19 +1,20 @@
 use clap::Parser;
+mod index;
 use clap::Subcommand;
 mod embeddings_generator;
 mod language_specs;
 mod similarity;
 mod treesitter_parse;
 use std::fs;
+use std::fs::read_dir;
 
 use crate::similarity::cosine_similarity;
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    Search {
-        path: std::path::PathBuf,
-        keywords: String,
-    },
+    Search { keywords: String },
+
+    Ingest { path: std::path::PathBuf },
 }
 
 #[derive(Parser)]
@@ -25,26 +26,49 @@ fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
     match args.commands {
         // big mess here, allow embeddings to persist -> todo
-        Commands::Search { path, keywords } => {
-            let spec = language_specs::spec_for_file(&path)?;
-            let tree = treesitter_parse::parser_demo(&path, &spec);
-            let source_code = fs::read_to_string(&path).expect("Failed to read source file");
-            let functions =
-                treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
-            let function_embeddings = embeddings_generator::create_function_embedding(functions)?;
-            let query_vector = embeddings_generator::create_embedding(&keywords)?;
+        Commands::Search { keywords } => {
+            let query = embeddings_generator::create_query_embedding(&keywords)?;
+            let loaded_indexed_functions = index::load_index()?;
+            let mut result: Vec<(index::IndexedFunction, f32)> = loaded_indexed_functions
+                .into_iter()
+                .map(|indexed_function| {
+                    let score = cosine_similarity(&query, &indexed_function.embedding);
 
-            let mut header_similarity_vector = Vec::new();
-            for embedding_struct in function_embeddings {
-                let cosine_result =
-                    cosine_similarity(&embedding_struct.function_embedding, &query_vector);
-                header_similarity_vector.push((embedding_struct.header, cosine_result));
+                    (indexed_function, score)
+                })
+                .collect();
+            result.sort_by(|a, b| b.1.total_cmp(&a.1));
+
+            for (indexed_function, score) in result.iter().take(5) {
+                println!("{}", indexed_function.header);
+            }
+        }
+
+        Commands::Ingest { path } => {
+            let mut all_indexed_functions = Vec::new();
+
+            for resource_entry_result in fs::read_dir(&path)? {
+                let entry = resource_entry_result?;
+                let file_path = entry.path();
+
+                if !file_path.is_file() {
+                    continue;
+                }
+
+                let spec = match language_specs::spec_for_file(&file_path) {
+                    Ok(spec) => spec,
+                    Err(err) => continue,
+                };
+
+                let tree = treesitter_parse::generate_tree(&file_path, &spec);
+                let source_code = fs::read_to_string(&file_path)?;
+                let functions =
+                    treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
+                let indexed_functions = index::create_indexed_functions(functions, &file_path)?;
+                all_indexed_functions.extend(indexed_functions);
             }
 
-            header_similarity_vector.sort_by(|a, b| b.1.total_cmp(&a.1));
-            for pair in header_similarity_vector {
-                println!("{}", pair.0);
-            }
+            index::save_index(&all_indexed_functions)?;
         }
     }
 
