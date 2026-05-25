@@ -11,15 +11,14 @@ use crate::similarity::cosine_similarity;
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    Search { keywords: String },
-
     Ingest { path: std::path::PathBuf },
 }
 
 #[derive(Parser)]
 struct Cli {
+    keywords: Option<String>,
     #[command(subcommand)]
-    commands: Commands,
+    commands: Option<Commands>,
 }
 
 fn recursive_ingest_dir(path: &std::path::PathBuf) -> anyhow::Result<Vec<index::IndexedFunction>> {
@@ -45,13 +44,18 @@ fn recursive_ingest_dir(path: &std::path::PathBuf) -> anyhow::Result<Vec<index::
         let indexed_functions = index::create_indexed_functions(functions, &file_path)?;
         all_indexed_functions.extend(indexed_functions);
     }
+
     Ok(all_indexed_functions)
 }
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
     match args.commands {
-        // big mess here, allow embeddings to persist -> todo
-        Commands::Search { keywords } => {
+        Some(Commands::Ingest { path }) => {
+            let all_indexed_functions = recursive_ingest_dir(&path)?;
+            index::save_index(&all_indexed_functions)?;
+        }
+        None => {
+            let keywords = args.keywords.expect("Please enter a search query");
             let query = embeddings_generator::create_query_embedding(&keywords)?;
             let loaded_indexed_functions = index::load_index()?;
             let mut result: Vec<(index::IndexedFunction, f32)> = loaded_indexed_functions
@@ -71,11 +75,6 @@ fn main() -> anyhow::Result<()> {
                     indexed_function.line_number, indexed_function.header
                 );
             }
-        }
-
-        Commands::Ingest { path } => {
-            let all_indexed_functions = recursive_ingest_dir(&path)?;
-            index::save_index(&all_indexed_functions)?;
         }
     }
 
