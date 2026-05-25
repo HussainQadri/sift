@@ -13,14 +13,14 @@ cargo run -- ingest ./src
 Search the stored index separately:
 
 ```bash
-cargo run -- search "load saved index records"
+cargo run -- "load saved index records"
 ```
 
 After installing the binary:
 
 ```bash
 sift ingest ./src
-sift search "extract functions from a syntax tree"
+sift "extract functions from a syntax tree"
 ```
 
 ## Current Pipeline
