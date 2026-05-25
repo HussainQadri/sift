@@ -25,7 +25,7 @@ struct Cli {
 fn recursive_ingest_dir(path: &std::path::PathBuf) -> anyhow::Result<Vec<index::IndexedFunction>> {
     let mut all_indexed_functions = Vec::new();
 
-    for resource_entry_result in fs::read_dir(&path)? {
+    for resource_entry_result in fs::read_dir(path)? {
         let entry = resource_entry_result?;
         let file_path = entry.path();
 
