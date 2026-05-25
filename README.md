@@ -1,6 +1,4 @@
-# Sift
-
-Sift is a Rust semantic code search CLI. It uses Tree-sitter to extract
+# Sift Sift is a Rust semantic code search CLI. It uses Tree-sitter to extract
 functions, embeds their full source with a code-oriented model, stores those
 vectors locally, and retrieves functions from natural-language queries.
 
@@ -24,9 +22,6 @@ After installing the binary:
 sift ingest ./src
 sift search "extract functions from a syntax tree"
 ```
-
-`ingest` currently processes supported files directly inside the supplied
-directory. Recursive traversal is a planned next step.
 
 ## Current Pipeline
 
@@ -63,7 +58,6 @@ score.
 
 ## Current Limitations
 
-- Ingestion is not recursive yet.
 - The embedding model is currently initialized in the per-file indexing path.
 - Search performs an exact cosine scan over all saved vectors.
 - `.sift/index.json` is inspectable prototype storage, not the intended format
@@ -79,7 +73,6 @@ benchmarks.
 
 Planned work:
 
-- Recursively ingest codebases while ignoring generated directories.
 - Initialize the embedding model once per ingestion run and batch embeddings.
 - Add ranking/evaluation queries and identifier-aware retrieval signals.
 - Implement in-memory HNSW search and compare it against exact cosine search.
