@@ -1,7 +1,5 @@
-# Sift Sift is a Rust semantic code search CLI. It uses Tree-sitter to extract
-functions, embeds their full source with a code-oriented model, stores those
-vectors locally, and retrieves functions from natural-language queries.
-
+# Sift
+Sift is a Rust semantic code search CLI. It uses Tree-sitter to extract functions, embeds their full source with a code-oriented model, stores those vectors locally, and retrieves functions from natural-language queries.
 ## Usage
 
 Ingest supported source files from a directory:
