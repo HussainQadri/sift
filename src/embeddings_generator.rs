@@ -2,8 +2,10 @@ use std::path::PathBuf;
 
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 
-pub fn create_function_embedding(texts: Vec<&String>) -> anyhow::Result<Vec<Vec<f32>>> {
-    let mut model = create_embedding_model()?;
+pub fn create_function_embedding(
+    model: &mut TextEmbedding,
+    texts: Vec<&String>,
+) -> anyhow::Result<Vec<Vec<f32>>> {
     let embeddings = model.embed(texts, None)?;
     Ok(embeddings)
 }
@@ -20,7 +22,7 @@ fn model_cache_dir() -> PathBuf {
         .join("sift")
         .join("fastembed")
 }
-fn create_embedding_model() -> anyhow::Result<TextEmbedding> {
+pub fn create_embedding_model() -> anyhow::Result<TextEmbedding> {
     let options = InitOptions::new(EmbeddingModel::JinaEmbeddingsV2BaseCode)
         .with_cache_dir(model_cache_dir());
 

@@ -5,6 +5,7 @@ mod embeddings_generator;
 mod language_specs;
 mod similarity;
 mod treesitter_parse;
+use fastembed::TextEmbedding;
 use std::fs;
 
 use crate::similarity::cosine_similarity;
@@ -21,7 +22,10 @@ struct Cli {
     commands: Option<Commands>,
 }
 
-fn recursive_ingest_dir(path: &std::path::PathBuf) -> anyhow::Result<Vec<index::IndexedFunction>> {
+fn recursive_ingest_dir(
+    model: &mut TextEmbedding,
+    path: &std::path::PathBuf,
+) -> anyhow::Result<Vec<index::IndexedFunction>> {
     let mut all_indexed_functions = Vec::new();
 
     for resource_entry_result in fs::read_dir(path)? {
@@ -29,7 +33,7 @@ fn recursive_ingest_dir(path: &std::path::PathBuf) -> anyhow::Result<Vec<index::
         let file_path = entry.path();
 
         if file_path.is_dir() {
-            let indexed_functions = recursive_ingest_dir(&file_path)?;
+            let indexed_functions = recursive_ingest_dir(model, &file_path)?;
             all_indexed_functions.extend(indexed_functions);
         }
 
@@ -41,7 +45,7 @@ fn recursive_ingest_dir(path: &std::path::PathBuf) -> anyhow::Result<Vec<index::
         let tree = treesitter_parse::generate_tree(&file_path, &spec);
         let source_code = fs::read_to_string(&file_path)?;
         let functions = treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
-        let indexed_functions = index::create_indexed_functions(functions, &file_path)?;
+        let indexed_functions = index::create_indexed_functions(model, functions, &file_path)?;
         all_indexed_functions.extend(indexed_functions);
     }
 
@@ -51,7 +55,8 @@ fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
     match args.commands {
         Some(Commands::Ingest { path }) => {
-            let all_indexed_functions = recursive_ingest_dir(&path)?;
+            let mut model = embeddings_generator::create_embedding_model()?;
+            let all_indexed_functions = recursive_ingest_dir(&mut model, &path)?;
             index::save_index(&all_indexed_functions)?;
         }
         None => {

@@ -1,5 +1,6 @@
 use crate::embeddings_generator;
 use crate::treesitter_parse::ExtractedFunction;
+use fastembed::TextEmbedding;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
@@ -15,6 +16,7 @@ pub struct IndexedFunction {
 }
 
 pub fn create_indexed_functions(
+    model: &mut TextEmbedding,
     functions: Vec<ExtractedFunction>,
     path: &Path,
 ) -> anyhow::Result<Vec<IndexedFunction>> {
@@ -23,7 +25,7 @@ pub fn create_indexed_functions(
         .map(|function_struct| &function_struct.source)
         .collect();
 
-    let embeddings = embeddings_generator::create_function_embedding(texts)?;
+    let embeddings = embeddings_generator::create_function_embedding(model, texts)?;
 
     let indexed_functions = functions
         .into_iter()
