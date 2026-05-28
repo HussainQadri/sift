@@ -73,7 +73,7 @@ fn main() -> anyhow::Result<()> {
                 .collect();
             result.sort_by(|a, b| b.1.total_cmp(&a.1));
 
-            for (indexed_function, score) in result.iter().take(5) {
+            for (indexed_function, score) in result.iter().take(3) {
                 println!("{:.3} {}: ", score, indexed_function.path);
                 println!(
                     "{}: {}\n",
