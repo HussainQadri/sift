@@ -2341,6 +2341,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "dirs",
  "fastembed",
  "serde",
  "serde_json",
