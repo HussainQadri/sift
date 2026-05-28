@@ -5,10 +5,34 @@ mod embeddings_generator;
 mod language_specs;
 mod similarity;
 mod treesitter_parse;
-use fastembed::TextEmbedding;
-use std::fs;
-
 use crate::similarity::cosine_similarity;
+use fastembed::TextEmbedding;
+use std::{fs, path::Path};
+use syntect::{
+    easy::HighlightLines,
+    highlighting::{Style, ThemeSet},
+    parsing::SyntaxSet,
+    util::{LinesWithEndings, as_24_bit_terminal_escaped},
+};
+
+fn print_highlighted(code: &str, extension: &str) {
+    let syntax_set = SyntaxSet::load_defaults_newlines();
+    let theme_set = ThemeSet::load_defaults();
+
+    let syntax = syntax_set
+        .find_syntax_by_extension(extension)
+        .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
+
+    let theme = &theme_set.themes["base16-ocean.dark"];
+
+    let mut highlighter = HighlightLines::new(syntax, theme);
+
+    for line in LinesWithEndings::from(code) {
+        let ranges: Vec<(Style, &str)> = highlighter.highlight_line(line, &syntax_set).unwrap();
+
+        print!("{}", as_24_bit_terminal_escaped(&ranges[..], false));
+    }
+}
 
 #[derive(Subcommand, Debug)]
 enum Commands {
@@ -75,10 +99,14 @@ fn main() -> anyhow::Result<()> {
 
             for (indexed_function, score) in result.iter().take(3) {
                 println!("{:.3} {}: ", score, indexed_function.path);
-                println!(
-                    "{}: {}\n",
-                    indexed_function.line_number, indexed_function.header
-                );
+                let extension = Path::new(&indexed_function.path)
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .unwrap_or("");
+
+                print!("\x1b[32m{}:\x1b[0m ", indexed_function.line_number);
+                print_highlighted(&indexed_function.header, extension);
+                println!("\n");
             }
         }
     }
