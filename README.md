@@ -2,7 +2,14 @@
 
 ![CI](https://github.com/HussainQadri/sift/actions/workflows/ci.yml/badge.svg)
 
-Sift is a Rust semantic code search CLI. It uses Tree-sitter to extract functions, embeds their full source with a code-oriented model, stores those vectors locally, and retrieves functions from natural-language queries.
+Sift is local semantic code search for codebases. Ask in natural language and jump straight to the functions that matter.
+
+<p align="center">
+  <img src="assets/sift-demo.gif" alt="Sift CLI demo">
+</p>
+
+It uses Tree-sitter to extract functions, embeds their full source with a code-oriented model, stores the index locally, and ranks matches with cosine similarity.
+
 ## Usage
 
 Ingest supported source files from a directory:
