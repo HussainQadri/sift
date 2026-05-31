@@ -4,7 +4,7 @@ use fastembed::TextEmbedding;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
-const INDEX_PATH: &str = ".sift/index.json";
+const INDEX_PATH: &str = ".sift-index/index.json";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IndexedFunction {
