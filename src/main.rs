@@ -1,4 +1,5 @@
 use clap::Parser;
+use ignore::Walk;
 mod index;
 use clap::Subcommand;
 mod embeddings_generator;
@@ -36,7 +37,7 @@ fn print_highlighted(code: &str, extension: &str) {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    Ingest { path: std::path::PathBuf },
+    Ingest { path: Option<std::path::PathBuf> },
 }
 
 #[derive(Parser)]
@@ -80,7 +81,13 @@ fn main() -> anyhow::Result<()> {
     match args.commands {
         Some(Commands::Ingest { path }) => {
             let mut model = embeddings_generator::create_embedding_model()?;
-            let all_indexed_functions = recursive_ingest_dir(&mut model, &path)?;
+
+            let target_path = match path {
+                Some(p) => p,
+                None => std::path::PathBuf::from("."),
+            };
+
+            let all_indexed_functions = recursive_ingest_dir(&mut model, &target_path)?;
             index::save_index(&all_indexed_functions)?;
         }
         None => {
