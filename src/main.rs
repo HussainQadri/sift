@@ -43,6 +43,9 @@ enum Commands {
 #[derive(Parser)]
 struct Cli {
     keywords: Option<String>,
+    #[arg(long, default_value_t = 3)]
+    top: usize,
+
     #[command(subcommand)]
     commands: Option<Commands>,
 }
@@ -91,8 +94,10 @@ fn main() -> anyhow::Result<()> {
             let all_indexed_functions = ingest_directory(&mut model, &target_path)?;
             index::save_index(&all_indexed_functions)?;
         }
+
         None => {
             let keywords = args.keywords.expect("Please enter a search query");
+            let top_k_results = args.top;
             let query = embeddings_generator::create_query_embedding(&keywords)?;
             let loaded_indexed_functions = index::load_index()?;
             let mut result: Vec<(index::IndexedFunction, f32)> = loaded_indexed_functions
@@ -105,7 +110,7 @@ fn main() -> anyhow::Result<()> {
                 .collect();
             result.sort_by(|a, b| b.1.total_cmp(&a.1));
 
-            for (indexed_function, score) in result.iter().take(3) {
+            for (indexed_function, score) in result.iter().take(top_k_results) {
                 println!("{:.3} {}: ", score, indexed_function.path);
                 let extension = Path::new(&indexed_function.path)
                     .extension()
