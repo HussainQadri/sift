@@ -7,7 +7,10 @@ use crate::index;
 use crate::similarity::cosine_similarity;
 
 pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
-    let keywords = args.keywords.expect("Please enter a search query");
+    let keywords = match args.keywords {
+        Some(query) => query,
+        None => anyhow::bail!("Please enter a query."),
+    };
     let top_k_results = args.top;
     let query = embeddings_generator::create_query_embedding(&keywords)?;
     let loaded_indexed_functions = index::load_index()?;

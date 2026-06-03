@@ -6,6 +6,7 @@ pub enum Commands {
 }
 
 #[derive(Parser)]
+#[command(arg_required_else_help = true)]
 pub struct Cli {
     pub keywords: Option<String>,
     #[arg(long, default_value_t = 3)]
