@@ -1,87 +1,18 @@
+use crate::cli::Commands;
 use clap::Parser;
-use ignore::Walk;
-mod index;
-use clap::Subcommand;
+mod cli;
+mod cli_output;
 mod embeddings_generator;
+mod index;
+mod ingest;
 mod language_specs;
 mod similarity;
 mod treesitter_parse;
 use crate::similarity::cosine_similarity;
-use fastembed::TextEmbedding;
-use std::{fs, path::Path};
-use syntect::{
-    easy::HighlightLines,
-    highlighting::{Style, ThemeSet},
-    parsing::SyntaxSet,
-    util::{LinesWithEndings, as_24_bit_terminal_escaped},
-};
+use std::path::Path;
 
-fn print_highlighted(code: &str, extension: &str) {
-    let syntax_set = SyntaxSet::load_defaults_newlines();
-    let theme_set = ThemeSet::load_defaults();
-
-    let syntax = syntax_set
-        .find_syntax_by_extension(extension)
-        .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
-
-    let theme = &theme_set.themes["base16-ocean.dark"];
-
-    let mut highlighter = HighlightLines::new(syntax, theme);
-
-    for line in LinesWithEndings::from(code) {
-        let ranges: Vec<(Style, &str)> = highlighter.highlight_line(line, &syntax_set).unwrap();
-
-        print!("{}", as_24_bit_terminal_escaped(&ranges[..], false));
-    }
-}
-
-#[derive(Subcommand, Debug)]
-enum Commands {
-    Ingest { path: Option<std::path::PathBuf> },
-}
-
-#[derive(Parser)]
-struct Cli {
-    keywords: Option<String>,
-    #[arg(long, default_value_t = 3)]
-    top: usize,
-
-    #[command(subcommand)]
-    commands: Option<Commands>,
-}
-
-fn ingest_directory(
-    model: &mut TextEmbedding,
-    path: &std::path::PathBuf,
-) -> anyhow::Result<Vec<index::IndexedFunction>> {
-    let mut all_indexed_functions = Vec::new();
-
-    for result in Walk::new(path) {
-        let entry = match result {
-            Ok(entry) => entry,
-            Err(err) => {
-                eprintln!("Invalid directory entry: {err}");
-                continue;
-            }
-        };
-        let file_path = entry.path();
-
-        let spec = match language_specs::spec_for_file(file_path) {
-            Ok(spec) => spec,
-            Err(_) => continue,
-        };
-
-        let tree = treesitter_parse::generate_tree(file_path, &spec);
-        let source_code = fs::read_to_string(file_path)?;
-        let functions = treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
-        let indexed_functions = index::create_indexed_functions(model, functions, file_path)?;
-        all_indexed_functions.extend(indexed_functions);
-    }
-
-    Ok(all_indexed_functions)
-}
 fn main() -> anyhow::Result<()> {
-    let args = Cli::parse();
+    let args = cli::Cli::parse();
     match args.commands {
         Some(Commands::Ingest { path }) => {
             let mut model = embeddings_generator::create_embedding_model()?;
@@ -91,7 +22,7 @@ fn main() -> anyhow::Result<()> {
                 None => std::path::PathBuf::from("."),
             };
 
-            let all_indexed_functions = ingest_directory(&mut model, &target_path)?;
+            let all_indexed_functions = ingest::ingest_directory(&mut model, &target_path)?;
             index::save_index(&all_indexed_functions)?;
         }
 
@@ -118,7 +49,7 @@ fn main() -> anyhow::Result<()> {
                     .unwrap_or("");
 
                 print!("\x1b[32m{}:\x1b[0m ", indexed_function.line_number);
-                print_highlighted(&indexed_function.header, extension);
+                cli_output::print_highlighted(&indexed_function.header, extension);
                 println!("\n");
             }
         }
