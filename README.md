@@ -45,7 +45,7 @@ directory
 -> source files
 -> Tree-sitter function extraction
 -> Jina code embeddings
--> .sift/index.json
+-> .sift-index/index.json
 ```
 
 Search:
@@ -53,7 +53,7 @@ Search:
 ```text
 query
 -> Jina query embedding
--> load .sift/index.json
+-> load .sift-index/index.json
 -> cosine similarity against saved function embeddings
 -> print top matches with source locations
 ```
