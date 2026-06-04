@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 pub struct Node {
     id: usize,
     embedding: Vec<f32>,
@@ -6,12 +7,12 @@ pub struct Node {
 
 pub struct HnswIndex {
     nodes: Vec<Node>,
-    entry_point: Option<Node>,
+    entry_point: Option<usize>,
 }
 
-pub fn insert(mut index: HnswIndex, embedding_vec: Vec<f32>) {
+pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
     // empty index case
-    if index.nodes.len() == 0 {
+    if index.nodes.is_empty() {
         let node_to_insert = Node {
             id: 0,
             embedding: embedding_vec,
@@ -19,5 +20,8 @@ pub fn insert(mut index: HnswIndex, embedding_vec: Vec<f32>) {
         };
 
         index.nodes.push(node_to_insert);
+        index.entry_point = Some(0);
+    } else {
+        todo!("Insert case when index is non-empty");
     }
 }
