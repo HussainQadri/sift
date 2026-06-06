@@ -25,6 +25,14 @@ pub fn cpp_spec() -> LanguageSpec {
           "#,
     }
 }
+
+pub fn java_spec() -> LanguageSpec {
+    LanguageSpec {
+        language: tree_sitter_java::LANGUAGE.into(),
+        function_query: r#"(method_declaration
+              body: (block) @body) @function"#,
+    }
+}
 pub fn spec_for_file(path: &Path) -> anyhow::Result<LanguageSpec> {
     let extension_string = path.extension().and_then(|ext| ext.to_str());
 
@@ -32,6 +40,7 @@ pub fn spec_for_file(path: &Path) -> anyhow::Result<LanguageSpec> {
         Some("rs") => Ok(rust_spec()),
         Some("py") => Ok(python_spec()),
         Some("cpp") => Ok(cpp_spec()),
+        Some("java") => Ok(java_spec()),
         Some(_ext) => anyhow::bail!("Unsupported file extension"),
         None => anyhow::bail!("File has no extension"),
     }
