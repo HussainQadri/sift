@@ -42,7 +42,7 @@ fn search_greedy(index: &HnswIndex, node_to_insert: &Node) -> usize {
         );
 
         let most_similar_neighbours =
-            calculate_most_similiar_neighbours(&index.nodes[current_id], &node_to_insert, index);
+            calculate_most_similiar_neighbours(&index.nodes[current_id], node_to_insert, index);
 
         if most_similar_neighbours.is_empty() {
             break;
@@ -82,4 +82,103 @@ pub fn calculate_most_similiar_neighbours(
 
     result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{HnswIndex, Node, calculate_most_similiar_neighbours, insert, search_greedy};
+
+    fn empty_index() -> HnswIndex {
+        HnswIndex {
+            nodes: Vec::new(),
+            entry_point: None,
+            m: 2,
+        }
+    }
+
+    fn node(id: usize, embedding: Vec<f32>, neighbours: Vec<usize>) -> Node {
+        Node {
+            id,
+            embedding,
+            neighbours,
+        }
+    }
+
+    #[test]
+    fn first_insert_sets_entry_point_and_stores_node() {
+        let mut index = empty_index();
+
+        insert(&mut index, vec![1.0, 0.0]);
+
+        assert_eq!(index.entry_point, Some(0));
+        assert_eq!(index.nodes.len(), 1);
+        assert_eq!(index.nodes[0].id, 0);
+        assert_eq!(index.nodes[0].embedding, vec![1.0, 0.0]);
+        assert!(index.nodes[0].neighbours.is_empty());
+    }
+
+    #[test]
+    fn second_insert_links_new_node_bidirectionally_to_entry_point() {
+        let mut index = empty_index();
+
+        insert(&mut index, vec![1.0, 0.0]);
+        insert(&mut index, vec![0.9, 0.1]);
+
+        assert_eq!(index.nodes.len(), 2);
+        assert_eq!(index.nodes[0].neighbours, vec![1]);
+        assert_eq!(index.nodes[1].neighbours, vec![0]);
+    }
+
+    #[test]
+    fn insert_uses_greedy_search_to_link_to_closest_reachable_node() {
+        let mut index = HnswIndex {
+            nodes: vec![
+                node(0, vec![1.0, 0.0], vec![1]),
+                node(1, vec![0.0, 1.0], vec![0]),
+            ],
+            entry_point: Some(0),
+            m: 2,
+        };
+
+        insert(&mut index, vec![0.0, 0.9]);
+
+        assert_eq!(index.nodes[2].neighbours, vec![1]);
+        assert_eq!(index.nodes[1].neighbours, vec![0, 2]);
+    }
+
+    #[test]
+    fn search_greedy_stops_when_no_neighbour_is_more_similar() {
+        let index = HnswIndex {
+            nodes: vec![
+                node(0, vec![1.0, 0.0], vec![1]),
+                node(1, vec![0.0, 1.0], vec![0]),
+            ],
+            entry_point: Some(0),
+            m: 2,
+        };
+        let query = node(2, vec![0.9, 0.1], Vec::new());
+
+        assert_eq!(search_greedy(&index, &query), 0);
+    }
+
+    #[test]
+    fn calculate_most_similar_neighbours_sorts_by_descending_similarity() {
+        let index = HnswIndex {
+            nodes: vec![
+                node(0, vec![1.0, 0.0], vec![1, 2]),
+                node(1, vec![0.0, 1.0], vec![0]),
+                node(2, vec![0.8, 0.2], vec![0]),
+            ],
+            entry_point: Some(0),
+            m: 2,
+        };
+        let query = node(3, vec![1.0, 0.0], Vec::new());
+
+        let neighbours = calculate_most_similiar_neighbours(&index.nodes[0], &query, &index);
+
+        assert_eq!(neighbours.len(), 2);
+        assert_eq!(neighbours[0].0, 2);
+        assert_eq!(neighbours[1].0, 1);
+        assert!(neighbours[0].1 > neighbours[1].1);
+    }
 }
