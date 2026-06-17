@@ -1,10 +1,36 @@
 #![allow(dead_code)]
 use crate::similarity;
+use std::cmp::Ordering;
 pub struct Node {
     id: usize,
     embedding: Vec<f32>,
     neighbours: Vec<usize>,
 }
+
+pub struct ScoredNode {
+    id: usize,
+    score: f32,
+}
+
+impl Ord for ScoredNode {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.score.total_cmp(&other.score)
+    }
+}
+
+impl PartialEq for ScoredNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.score.total_cmp(&other.score) == Ordering::Equal
+    }
+}
+
+impl PartialOrd for ScoredNode {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Eq for ScoredNode {}
 
 pub struct HnswIndex {
     nodes: Vec<Node>,
