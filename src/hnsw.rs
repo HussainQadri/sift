@@ -14,7 +14,9 @@ pub struct ScoredNode {
 
 impl Ord for ScoredNode {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.score.total_cmp(&other.score)
+        self.score
+            .total_cmp(&other.score)
+            .then_with(|| self.id.cmp(&other.id))
     }
 }
 
