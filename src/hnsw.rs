@@ -1,12 +1,14 @@
 #![allow(dead_code)]
 use crate::similarity;
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
+use std::collections::{BinaryHeap, HashSet};
 pub struct Node {
     id: usize,
     embedding: Vec<f32>,
     neighbours: Vec<usize>,
 }
 
+#[derive(Clone, Copy)]
 pub struct ScoredNode {
     id: usize,
     score: f32,
@@ -38,6 +40,7 @@ pub struct HnswIndex {
     nodes: Vec<Node>,
     entry_point: Option<usize>,
     m: usize,
+    ef: usize,
 }
 
 pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
@@ -87,6 +90,67 @@ fn search_greedy(index: &HnswIndex, node_to_insert: &Node) -> usize {
     }
 
     current_id
+}
+fn search_layer(
+    index: &HnswIndex,
+    query_vector: &[f32],
+    entry_point_id: usize,
+    ef: usize,
+) -> Vec<(usize, f32)> {
+    let mut visited: HashSet<usize> = HashSet::new();
+    visited.insert(entry_point_id);
+
+    let entry_point_similarity =
+        similarity::cosine_similarity(query_vector, &index.nodes[entry_point_id].embedding);
+    let entry_scored_node = ScoredNode {
+        id: entry_point_id,
+        score: entry_point_similarity,
+    };
+
+    let mut candidates: BinaryHeap<ScoredNode> = BinaryHeap::new();
+    let mut best_found: BinaryHeap<Reverse<ScoredNode>> = BinaryHeap::new();
+
+    candidates.push(entry_scored_node);
+    best_found.push(Reverse(entry_scored_node)); // the root is the worst best-found node
+
+    while let Some(best_candidate) = candidates.pop() {
+        let worst_found = best_found.peek().unwrap().0;
+        if best_candidate.score < worst_found.score {
+            break;
+        }
+
+        for &neighbour_id in &index.nodes[best_candidate.id].neighbours {
+            if !visited.contains(&neighbour_id) {
+                visited.insert(neighbour_id);
+                let neighbour_vector = &index.nodes[neighbour_id].embedding;
+                let neighbour_similarity =
+                    similarity::cosine_similarity(query_vector, neighbour_vector);
+
+                if best_found.len() < ef {
+                    let new_scored_node = ScoredNode {
+                        id: neighbour_id,
+                        score: neighbour_similarity,
+                    };
+                    candidates.push(new_scored_node);
+                    best_found.push(Reverse(new_scored_node));
+                } else if neighbour_similarity > best_found.peek().unwrap().0.score {
+                    let new_scored_node = ScoredNode {
+                        id: neighbour_id,
+                        score: neighbour_similarity,
+                    };
+                    candidates.push(new_scored_node);
+                    best_found.push(Reverse(new_scored_node));
+                    best_found.pop();
+                }
+            }
+        }
+    }
+
+    let mut results = best_found
+        .into_iter()
+        .map(|Reverse(node)| (node.id, node.score))
+        .collect();
+    return results;
 }
 
 pub fn calculate_most_similiar_neighbours(
