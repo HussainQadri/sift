@@ -54,11 +54,21 @@ pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
         index.nodes.push(node_to_insert);
         index.entry_point = Some(0);
     } else {
-        let closest_node_id = search_greedy(index, &node_to_insert);
-        node_to_insert.neighbours.push(closest_node_id);
-        index.nodes[closest_node_id]
-            .neighbours
-            .push(node_to_insert.id);
+        let nearby_neighbours: Vec<(usize, f32)> = search_layer(
+            index,
+            &node_to_insert.embedding,
+            index.entry_point.unwrap(),
+            index.ef,
+        );
+        let best_m_neighbours: Vec<usize> = nearby_neighbours
+            .into_iter()
+            .take(index.m)
+            .map(|(id, _score)| id)
+            .collect();
+        for id in best_m_neighbours {
+            node_to_insert.neighbours.push(id);
+            index.nodes[id].neighbours.push(node_to_insert.id);
+        }
         index.nodes.push(node_to_insert);
     }
 }
@@ -146,11 +156,12 @@ fn search_layer(
         }
     }
 
-    let mut results = best_found
+    let mut results: Vec<(usize, f32)> = best_found
         .into_iter()
         .map(|Reverse(node)| (node.id, node.score))
         .collect();
-    return results;
+    results.sort_by(|a, b| b.1.total_cmp(&a.1));
+    results
 }
 
 pub fn calculate_most_similiar_neighbours(
@@ -178,13 +189,16 @@ pub fn calculate_most_similiar_neighbours(
 
 #[cfg(test)]
 mod tests {
-    use super::{HnswIndex, Node, calculate_most_similiar_neighbours, insert, search_greedy};
+    use super::{
+        HnswIndex, Node, calculate_most_similiar_neighbours, insert, search_greedy, search_layer,
+    };
 
     fn empty_index() -> HnswIndex {
         HnswIndex {
             nodes: Vec::new(),
             entry_point: None,
             m: 2,
+            ef: 2,
         }
     }
 
@@ -222,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn insert_uses_greedy_search_to_link_to_closest_reachable_node() {
+    fn insert_uses_search_layer_to_link_to_closest_reachable_nodes() {
         let mut index = HnswIndex {
             nodes: vec![
                 node(0, vec![1.0, 0.0], vec![1]),
@@ -230,12 +244,35 @@ mod tests {
             ],
             entry_point: Some(0),
             m: 2,
+            ef: 2,
         };
 
         insert(&mut index, vec![0.0, 0.9]);
 
-        assert_eq!(index.nodes[2].neighbours, vec![1]);
+        assert_eq!(index.nodes[2].neighbours, vec![1, 0]);
         assert_eq!(index.nodes[1].neighbours, vec![0, 2]);
+        assert_eq!(index.nodes[0].neighbours, vec![1, 2]);
+    }
+
+    #[test]
+    fn search_layer_returns_up_to_ef_best_reachable_nodes() {
+        let index = HnswIndex {
+            nodes: vec![
+                node(0, vec![1.0, 0.0], vec![1, 2]),
+                node(1, vec![0.0, 1.0], vec![0]),
+                node(2, vec![0.9, 0.1], vec![0]),
+            ],
+            entry_point: Some(0),
+            m: 2,
+            ef: 2,
+        };
+
+        let results = search_layer(&index, &[1.0, 0.0], 0, index.ef);
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].0, 0);
+        assert_eq!(results[1].0, 2);
+        assert!(results[0].1 > results[1].1);
     }
 
     #[test]
@@ -247,6 +284,7 @@ mod tests {
             ],
             entry_point: Some(0),
             m: 2,
+            ef: 2,
         };
         let query = node(2, vec![0.9, 0.1], Vec::new());
 
@@ -263,6 +301,7 @@ mod tests {
             ],
             entry_point: Some(0),
             m: 2,
+            ef: 2,
         };
         let query = node(3, vec![1.0, 0.0], Vec::new());
 
