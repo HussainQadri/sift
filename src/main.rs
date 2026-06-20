@@ -4,6 +4,7 @@ use clap::Parser;
 mod cli;
 mod cli_output;
 mod embeddings_generator;
+mod hnsw;
 mod index;
 mod ingest;
 mod language_specs;
