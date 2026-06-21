@@ -64,10 +64,9 @@ score.
 
 ## Roadmap
 
-Exact cosine search is the correctness baseline. The next substantial indexing
-work is a custom HNSW approximate nearest-neighbour implementation for large
-codebases, evaluated against exhaustive search with latency and recall
-benchmarks.
+Current search uses exact cosine similarity over the saved JSON index.
+
+An experimental in-memory HNSW module exists, but it is not yet wired into the CLI. The next step is to integrate it into search and benchmark recall/latency against exact search.
 
 Planned work:
 
