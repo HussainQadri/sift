@@ -61,6 +61,7 @@ mod tests {
         assert!(spec_for_file(Path::new("main.rs")).is_ok());
         assert!(spec_for_file(Path::new("module.py")).is_ok());
         assert!(spec_for_file(Path::new("engine.cpp")).is_ok());
+        assert!(spec_for_file(Path::new("MapView.java")).is_ok());
     }
 
     #[test]
