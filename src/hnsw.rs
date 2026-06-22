@@ -2,6 +2,7 @@
 use crate::similarity;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashSet};
+#[derive(Clone)]
 pub struct Node {
     id: usize,
     embedding: Vec<f32>,
@@ -69,8 +70,40 @@ pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
             node_to_insert.neighbours.push(id);
             index.nodes[id].neighbours.push(node_to_insert.id);
         }
+        let new_node_id = node_to_insert.id;
         index.nodes.push(node_to_insert);
+
+        let neighbour_list = index.nodes[new_node_id].neighbours.clone();
+        for neighbour_id in neighbour_list {
+            prune(index, neighbour_id);
+        }
     }
+}
+
+fn prune(index: &mut HnswIndex, node_to_prune_id: usize) {
+    if index.nodes[node_to_prune_id].neighbours.len() <= index.m {
+        return;
+    }
+    let node_to_prune = index.nodes[node_to_prune_id].clone();
+    let neighbour_ids = index.nodes[node_to_prune_id].neighbours.clone();
+
+    let mut scored: Vec<(usize, f32)> = neighbour_ids
+        .into_iter()
+        .map(|neighbour_id| {
+            let score = similarity::cosine_similarity(
+                &node_to_prune.embedding,
+                &index.nodes[neighbour_id].embedding,
+            );
+            (neighbour_id, score)
+        })
+        .collect();
+    scored.sort_by(|a, b| b.1.total_cmp(&a.1));
+
+    index.nodes[node_to_prune_id].neighbours = scored
+        .into_iter()
+        .take(index.m)
+        .map(|(id, _score)| id)
+        .collect();
 }
 
 fn search_greedy(index: &HnswIndex, node_to_insert: &Node) -> usize {
@@ -311,5 +344,40 @@ mod tests {
         assert_eq!(neighbours[0].0, 2);
         assert_eq!(neighbours[1].0, 1);
         assert!(neighbours[0].1 > neighbours[1].1);
+    }
+
+    #[test]
+    fn prune_keeps_only_the_m_most_similar_neighbours() {
+        let mut index = HnswIndex {
+            nodes: vec![
+                node(0, vec![1.0, 0.0], vec![1, 2, 3]),
+                node(1, vec![1.0, 0.0], vec![0]),
+                node(2, vec![0.0, 1.0], vec![0]),
+                node(3, vec![0.8, 0.2], vec![0]),
+            ],
+            entry_point: Some(0),
+            m: 2,
+            ef: 3,
+        };
+
+        super::prune(&mut index, 0);
+
+        assert_eq!(index.nodes[0].neighbours, vec![1, 3]);
+    }
+
+    #[test]
+    fn insertion_keeps_every_node_within_max_degree() {
+        let mut index = empty_index();
+
+        for i in 0..20 {
+            insert(&mut index, vec![1.0, i as f32 / 100.0]);
+        }
+
+        assert!(
+            index
+                .nodes
+                .iter()
+                .all(|node| node.neighbours.len() <= index.m)
+        );
     }
 }
