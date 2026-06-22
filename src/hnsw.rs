@@ -25,7 +25,7 @@ impl Ord for ScoredNode {
 
 impl PartialEq for ScoredNode {
     fn eq(&self, other: &Self) -> bool {
-        self.score.total_cmp(&other.score) == Ordering::Equal
+        self.id == other.id && self.score.total_cmp(&other.score) == Ordering::Equal
     }
 }
 
