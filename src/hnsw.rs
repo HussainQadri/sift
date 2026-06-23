@@ -386,7 +386,7 @@ mod tests {
             index
                 .nodes
                 .iter()
-                .all(|node| node.neighbours.len() <= index.m)
+                .all(|node| node.neighbours[0].len() <= index.m)
         );
     }
 }
