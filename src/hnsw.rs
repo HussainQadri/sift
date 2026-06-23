@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 use crate::similarity;
+use rand::RngExt;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashSet};
+const MAX_ALLOWED_LAYER: usize = 16;
 #[derive(Clone)]
 pub struct Node {
     id: usize,
@@ -45,13 +47,19 @@ pub struct HnswIndex {
     ef: usize,
 }
 
-pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>, layer: usize) {
-    // empty index case
-    let mut node_to_insert = Node {
+pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>) -> Node {
+    let mut rng = rand::rng();
+    let random_max_layer = rng.random_range(0..MAX_ALLOWED_LAYER + 1);
+    let node = Node {
         id: index.nodes.len(),
         embedding: embedding_vec,
-        neighbours: vec![Vec::new()],
+        neighbours: vec![Vec::new(); random_max_layer],
     };
+    node
+}
+pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>, random_max_layer: usize) {
+    // empty index case
+    let mut node_to_insert = create_node(index, embedding_vec);
     if index.nodes.is_empty() {
         index.nodes.push(node_to_insert);
         index.entry_point = Some(0);
@@ -61,7 +69,7 @@ pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>, layer: usize) {
             &node_to_insert.embedding,
             index.entry_point.unwrap(),
             index.ef,
-            layer,
+            random_max_layer,
         );
         let best_m_neighbours: Vec<usize> = nearby_neighbours
             .into_iter()
