@@ -81,7 +81,7 @@ fn insert_node(index: &mut HnswIndex, mut node_to_insert: Node) {
         let old_max_layer = index.max_layer;
 
         for layer in ((node_max_layer + 1)..=old_max_layer).rev() {
-            current_id = search_greedy(index, &node_to_insert, layer, current_id);
+            current_id = search_greedy(index, &node_to_insert.embedding, layer, current_id);
         }
 
         let top_connection_layer = node_max_layer.min(old_max_layer);
@@ -153,21 +153,19 @@ fn prune(index: &mut HnswIndex, node_to_prune_id: usize, layer: usize) {
 
 fn search_greedy(
     index: &HnswIndex,
-    node_to_insert: &Node,
+    query_vector: &[f32],
     layer: usize,
     entry_point_id: usize,
 ) -> usize {
     let mut current_id = entry_point_id;
 
     loop {
-        let current_similarity = similarity::cosine_similarity(
-            &index.nodes[current_id].embedding,
-            &node_to_insert.embedding,
-        );
+        let current_similarity =
+            similarity::cosine_similarity(&index.nodes[current_id].embedding, &query_vector);
 
         let most_similar_neighbours = calculate_most_similiar_neighbours(
             &index.nodes[current_id],
-            node_to_insert,
+            query_vector,
             index,
             layer,
         );
@@ -254,7 +252,7 @@ fn search_layer(
 
 pub fn calculate_most_similiar_neighbours(
     current_node: &Node,
-    query_node: &Node,
+    query_vector: &[f32],
     all_nodes: &HnswIndex,
     layer: usize,
 ) -> Vec<(usize, f32)> {
@@ -264,10 +262,7 @@ pub fn calculate_most_similiar_neighbours(
         .map(|&node_id| {
             (
                 node_id,
-                similarity::cosine_similarity(
-                    &all_nodes.nodes[node_id].embedding,
-                    &query_node.embedding,
-                ),
+                similarity::cosine_similarity(&all_nodes.nodes[node_id].embedding, &query_vector),
             )
         })
         .collect();
@@ -400,7 +395,7 @@ mod tests {
         };
         let query_node = node(2, vec![0.9, 0.1], Vec::new());
 
-        assert_eq!(search_greedy(&index, &query_node, 0, 0), 0);
+        assert_eq!(search_greedy(&index, &query_node.embedding, 0, 0), 0);
     }
 
     #[test]
@@ -418,7 +413,8 @@ mod tests {
         };
         let query = node(3, vec![1.0, 0.0], Vec::new());
 
-        let neighbours = calculate_most_similiar_neighbours(&index.nodes[0], &query, &index, 0);
+        let neighbours =
+            calculate_most_similiar_neighbours(&index.nodes[0], &query.embedding, &index, 0);
 
         assert_eq!(neighbours.len(), 2);
         assert_eq!(neighbours[0].0, 2);
