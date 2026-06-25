@@ -64,10 +64,14 @@ pub fn get_random_level(m: usize) -> usize {
     ((-u.ln() * m_l).floor() as usize).min(MAX_ALLOWED_LAYER)
 }
 pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
-    // empty index case
-    let mut node_to_insert = create_node(index, embedding_vec);
+    let node_to_insert = create_node(index, embedding_vec);
+    insert_node(index, node_to_insert);
+}
+
+fn insert_node(index: &mut HnswIndex, mut node_to_insert: Node) {
     let mut nodes_to_prune = Vec::new();
     let node_max_layer = node_to_insert.neighbours.len() - 1;
+
     if index.nodes.is_empty() {
         index.nodes.push(node_to_insert);
         index.entry_point = Some(0);
@@ -275,7 +279,8 @@ pub fn calculate_most_similiar_neighbours(
 #[cfg(test)]
 mod tests {
     use super::{
-        HnswIndex, Node, calculate_most_similiar_neighbours, insert, search_greedy, search_layer,
+        HnswIndex, Node, calculate_most_similiar_neighbours, insert, insert_node, search_greedy,
+        search_layer,
     };
 
     fn empty_index() -> HnswIndex {
@@ -339,6 +344,24 @@ mod tests {
         assert_eq!(index.nodes[2].neighbours[0], vec![1, 0]);
         assert_eq!(index.nodes[1].neighbours[0], vec![0, 2]);
         assert_eq!(index.nodes[0].neighbours[0], vec![1, 2]);
+    }
+
+    #[test]
+    fn taller_inserted_node_becomes_entry_point_and_updates_max_layer() {
+        let mut index = HnswIndex {
+            nodes: vec![node(0, vec![1.0, 0.0], vec![Vec::new()])],
+            entry_point: Some(0),
+            m: 2,
+            ef: 2,
+            max_layer: 0,
+        };
+        let taller_node = node(1, vec![0.9, 0.1], vec![Vec::new(), Vec::new(), Vec::new()]);
+
+        insert_node(&mut index, taller_node);
+
+        assert_eq!(index.entry_point, Some(1));
+        assert_eq!(index.max_layer, 2);
+        assert_eq!(index.nodes[1].neighbours.len(), 3);
     }
 
     #[test]
