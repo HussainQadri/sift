@@ -48,15 +48,20 @@ pub struct HnswIndex {
 }
 
 pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>) -> Node {
-    let mut rng = rand::rng();
-    let max_layer = index.max_layer.min(MAX_ALLOWED_LAYER);
-    let random_max_layer = rng.random_range(0..=max_layer);
-    let node = Node {
+    let random_max_layer = get_random_level(index.m);
+    Node {
         id: index.nodes.len(),
         embedding: embedding_vec,
         neighbours: vec![Vec::new(); random_max_layer + 1],
-    };
-    node
+    }
+}
+
+pub fn get_random_level(m: usize) -> usize {
+    let mut rng = rand::rng();
+    let m_l = 1.0 / (m as f32).ln();
+
+    let u: f32 = rng.random_range(f32::MIN_POSITIVE..1.0);
+    ((-u.ln() * m_l).floor() as usize).min(MAX_ALLOWED_LAYER)
 }
 pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
     // empty index case
@@ -67,7 +72,6 @@ pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
         index.nodes.push(node_to_insert);
         index.entry_point = Some(0);
         index.max_layer = node_max_layer;
-        return;
     } else {
         let mut current_id = index.entry_point.unwrap();
         let old_max_layer = index.max_layer;
