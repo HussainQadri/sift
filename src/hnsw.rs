@@ -1,12 +1,14 @@
 #![allow(dead_code)]
 use crate::similarity;
+use rand::RngExt;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashSet};
+const MAX_ALLOWED_LAYER: usize = 16;
 #[derive(Clone)]
 pub struct Node {
     id: usize,
     embedding: Vec<f32>,
-    neighbours: Vec<usize>,
+    neighbours: Vec<Vec<usize>>,
 }
 
 #[derive(Clone, Copy)]
@@ -40,52 +42,95 @@ impl Eq for ScoredNode {}
 pub struct HnswIndex {
     nodes: Vec<Node>,
     entry_point: Option<usize>,
+    max_layer: usize,
     m: usize,
     ef: usize,
 }
 
-pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
-    // empty index case
-    let mut node_to_insert = Node {
+pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>) -> Node {
+    let random_max_layer = get_random_level(index.m);
+    Node {
         id: index.nodes.len(),
         embedding: embedding_vec,
-        neighbours: Vec::new(),
-    };
+        neighbours: vec![Vec::new(); random_max_layer + 1],
+    }
+}
+
+pub fn get_random_level(m: usize) -> usize {
+    let mut rng = rand::rng();
+    let m_l = 1.0 / (m as f32).ln();
+
+    let u: f32 = rng.random_range(f32::MIN_POSITIVE..1.0);
+    ((-u.ln() * m_l).floor() as usize).min(MAX_ALLOWED_LAYER)
+}
+pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
+    let node_to_insert = create_node(index, embedding_vec);
+    insert_node(index, node_to_insert);
+}
+
+fn insert_node(index: &mut HnswIndex, mut node_to_insert: Node) {
+    let mut nodes_to_prune = Vec::new();
+    let node_max_layer = node_to_insert.neighbours.len() - 1;
+
     if index.nodes.is_empty() {
         index.nodes.push(node_to_insert);
         index.entry_point = Some(0);
+        index.max_layer = node_max_layer;
     } else {
-        let nearby_neighbours: Vec<(usize, f32)> = search_layer(
-            index,
-            &node_to_insert.embedding,
-            index.entry_point.unwrap(),
-            index.ef,
-        );
-        let best_m_neighbours: Vec<usize> = nearby_neighbours
-            .into_iter()
-            .take(index.m)
-            .map(|(id, _score)| id)
-            .collect();
-        for id in best_m_neighbours {
-            node_to_insert.neighbours.push(id);
-            index.nodes[id].neighbours.push(node_to_insert.id);
+        let mut current_id = index.entry_point.unwrap();
+        let old_max_layer = index.max_layer;
+
+        for layer in ((node_max_layer + 1)..=old_max_layer).rev() {
+            current_id = search_greedy(index, &node_to_insert, layer, current_id);
+        }
+
+        let top_connection_layer = node_max_layer.min(old_max_layer);
+        for node_layer in (0..=top_connection_layer).rev() {
+            let nearby_neighbours: Vec<(usize, f32)> = search_layer(
+                index,
+                &node_to_insert.embedding,
+                current_id,
+                index.ef,
+                node_layer,
+            );
+            let best_m_neighbours: Vec<usize> = nearby_neighbours
+                .into_iter()
+                .take(index.m)
+                .map(|(id, _score)| id)
+                .collect();
+            for id in &best_m_neighbours {
+                node_to_insert.neighbours[node_layer].push(*id);
+                index.nodes[*id].neighbours[node_layer].push(node_to_insert.id);
+            }
+
+            for &neighbour_id in &node_to_insert.neighbours[node_layer] {
+                nodes_to_prune.push((neighbour_id, node_layer));
+            }
+
+            if let Some(&best_id) = best_m_neighbours.first() {
+                current_id = best_id;
+            }
         }
         let new_node_id = node_to_insert.id;
         index.nodes.push(node_to_insert);
 
-        let neighbour_list = index.nodes[new_node_id].neighbours.clone();
-        for neighbour_id in neighbour_list {
-            prune(index, neighbour_id);
+        if node_max_layer > old_max_layer {
+            index.entry_point = Some(new_node_id);
+            index.max_layer = node_max_layer;
+        }
+
+        for (neighbour_id, node_layer) in nodes_to_prune {
+            prune(index, neighbour_id, node_layer);
         }
     }
 }
 
-fn prune(index: &mut HnswIndex, node_to_prune_id: usize) {
-    if index.nodes[node_to_prune_id].neighbours.len() <= index.m {
+fn prune(index: &mut HnswIndex, node_to_prune_id: usize, layer: usize) {
+    if index.nodes[node_to_prune_id].neighbours[layer].len() <= index.m {
         return;
     }
     let node_to_prune = index.nodes[node_to_prune_id].clone();
-    let neighbour_ids = index.nodes[node_to_prune_id].neighbours.clone();
+    let neighbour_ids = index.nodes[node_to_prune_id].neighbours[layer].clone();
 
     let mut scored: Vec<(usize, f32)> = neighbour_ids
         .into_iter()
@@ -99,15 +144,20 @@ fn prune(index: &mut HnswIndex, node_to_prune_id: usize) {
         .collect();
     scored.sort_by(|a, b| b.1.total_cmp(&a.1));
 
-    index.nodes[node_to_prune_id].neighbours = scored
+    index.nodes[node_to_prune_id].neighbours[layer] = scored
         .into_iter()
         .take(index.m)
         .map(|(id, _score)| id)
         .collect();
 }
 
-fn search_greedy(index: &HnswIndex, node_to_insert: &Node) -> usize {
-    let mut current_id = index.entry_point.unwrap();
+fn search_greedy(
+    index: &HnswIndex,
+    node_to_insert: &Node,
+    layer: usize,
+    entry_point_id: usize,
+) -> usize {
+    let mut current_id = entry_point_id;
 
     loop {
         let current_similarity = similarity::cosine_similarity(
@@ -115,8 +165,12 @@ fn search_greedy(index: &HnswIndex, node_to_insert: &Node) -> usize {
             &node_to_insert.embedding,
         );
 
-        let most_similar_neighbours =
-            calculate_most_similiar_neighbours(&index.nodes[current_id], node_to_insert, index);
+        let most_similar_neighbours = calculate_most_similiar_neighbours(
+            &index.nodes[current_id],
+            node_to_insert,
+            index,
+            layer,
+        );
 
         if most_similar_neighbours.is_empty() {
             break;
@@ -139,6 +193,7 @@ fn search_layer(
     query_vector: &[f32],
     entry_point_id: usize,
     ef: usize,
+    layer: usize,
 ) -> Vec<(usize, f32)> {
     let mut visited: HashSet<usize> = HashSet::new();
     visited.insert(entry_point_id);
@@ -162,7 +217,7 @@ fn search_layer(
             break;
         }
 
-        for &neighbour_id in &index.nodes[best_candidate.id].neighbours {
+        for &neighbour_id in &index.nodes[best_candidate.id].neighbours[layer] {
             if !visited.contains(&neighbour_id) {
                 visited.insert(neighbour_id);
                 let neighbour_vector = &index.nodes[neighbour_id].embedding;
@@ -201,8 +256,9 @@ pub fn calculate_most_similiar_neighbours(
     current_node: &Node,
     query_node: &Node,
     all_nodes: &HnswIndex,
+    layer: usize,
 ) -> Vec<(usize, f32)> {
-    let node_neighbors = &current_node.neighbours;
+    let node_neighbors = &current_node.neighbours[layer];
     let mut result: Vec<(usize, f32)> = node_neighbors
         .iter()
         .map(|&node_id| {
@@ -223,19 +279,21 @@ pub fn calculate_most_similiar_neighbours(
 #[cfg(test)]
 mod tests {
     use super::{
-        HnswIndex, Node, calculate_most_similiar_neighbours, insert, search_greedy, search_layer,
+        HnswIndex, Node, calculate_most_similiar_neighbours, insert, insert_node, search_greedy,
+        search_layer,
     };
 
     fn empty_index() -> HnswIndex {
         HnswIndex {
             nodes: Vec::new(),
             entry_point: None,
+            max_layer: 0,
             m: 2,
             ef: 2,
         }
     }
 
-    fn node(id: usize, embedding: Vec<f32>, neighbours: Vec<usize>) -> Node {
+    fn node(id: usize, embedding: Vec<f32>, neighbours: Vec<Vec<usize>>) -> Node {
         Node {
             id,
             embedding,
@@ -253,7 +311,7 @@ mod tests {
         assert_eq!(index.nodes.len(), 1);
         assert_eq!(index.nodes[0].id, 0);
         assert_eq!(index.nodes[0].embedding, vec![1.0, 0.0]);
-        assert!(index.nodes[0].neighbours.is_empty());
+        assert!(index.nodes[0].neighbours[0].is_empty());
     }
 
     #[test]
@@ -264,43 +322,63 @@ mod tests {
         insert(&mut index, vec![0.9, 0.1]);
 
         assert_eq!(index.nodes.len(), 2);
-        assert_eq!(index.nodes[0].neighbours, vec![1]);
-        assert_eq!(index.nodes[1].neighbours, vec![0]);
+        assert_eq!(index.nodes[0].neighbours[0], vec![1]);
+        assert_eq!(index.nodes[1].neighbours[0], vec![0]);
     }
 
     #[test]
     fn insert_uses_search_layer_to_link_to_closest_reachable_nodes() {
         let mut index = HnswIndex {
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![1]),
-                node(1, vec![0.0, 1.0], vec![0]),
+                node(0, vec![1.0, 0.0], vec![vec![1]]),
+                node(1, vec![0.0, 1.0], vec![vec![0]]),
             ],
             entry_point: Some(0),
             m: 2,
             ef: 2,
+            max_layer: 0,
         };
 
         insert(&mut index, vec![0.0, 0.9]);
 
-        assert_eq!(index.nodes[2].neighbours, vec![1, 0]);
-        assert_eq!(index.nodes[1].neighbours, vec![0, 2]);
-        assert_eq!(index.nodes[0].neighbours, vec![1, 2]);
+        assert_eq!(index.nodes[2].neighbours[0], vec![1, 0]);
+        assert_eq!(index.nodes[1].neighbours[0], vec![0, 2]);
+        assert_eq!(index.nodes[0].neighbours[0], vec![1, 2]);
+    }
+
+    #[test]
+    fn taller_inserted_node_becomes_entry_point_and_updates_max_layer() {
+        let mut index = HnswIndex {
+            nodes: vec![node(0, vec![1.0, 0.0], vec![Vec::new()])],
+            entry_point: Some(0),
+            m: 2,
+            ef: 2,
+            max_layer: 0,
+        };
+        let taller_node = node(1, vec![0.9, 0.1], vec![Vec::new(), Vec::new(), Vec::new()]);
+
+        insert_node(&mut index, taller_node);
+
+        assert_eq!(index.entry_point, Some(1));
+        assert_eq!(index.max_layer, 2);
+        assert_eq!(index.nodes[1].neighbours.len(), 3);
     }
 
     #[test]
     fn search_layer_returns_up_to_ef_best_reachable_nodes() {
         let index = HnswIndex {
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![1, 2]),
-                node(1, vec![0.0, 1.0], vec![0]),
-                node(2, vec![0.9, 0.1], vec![0]),
+                node(0, vec![1.0, 0.0], vec![vec![1, 2]]),
+                node(1, vec![0.0, 1.0], vec![vec![0]]),
+                node(2, vec![0.9, 0.1], vec![vec![0]]),
             ],
             entry_point: Some(0),
             m: 2,
             ef: 2,
+            max_layer: 3,
         };
 
-        let results = search_layer(&index, &[1.0, 0.0], 0, index.ef);
+        let results = search_layer(&index, &[1.0, 0.0], 0, index.ef, 0);
 
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].0, 0);
@@ -311,26 +389,28 @@ mod tests {
     #[test]
     fn search_greedy_stops_when_no_neighbour_is_more_similar() {
         let index = HnswIndex {
+            max_layer: 3,
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![1]),
-                node(1, vec![0.0, 1.0], vec![0]),
+                node(0, vec![1.0, 0.0], vec![vec![1]]),
+                node(1, vec![0.0, 1.0], vec![vec![0]]),
             ],
             entry_point: Some(0),
             m: 2,
             ef: 2,
         };
-        let query = node(2, vec![0.9, 0.1], Vec::new());
+        let query_node = node(2, vec![0.9, 0.1], Vec::new());
 
-        assert_eq!(search_greedy(&index, &query), 0);
+        assert_eq!(search_greedy(&index, &query_node, 0, 0), 0);
     }
 
     #[test]
     fn calculate_most_similar_neighbours_sorts_by_descending_similarity() {
         let index = HnswIndex {
+            max_layer: 3,
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![1, 2]),
-                node(1, vec![0.0, 1.0], vec![0]),
-                node(2, vec![0.8, 0.2], vec![0]),
+                node(0, vec![1.0, 0.0], vec![vec![1, 2]]),
+                node(1, vec![0.0, 1.0], vec![vec![0]]),
+                node(2, vec![0.8, 0.2], vec![vec![0]]),
             ],
             entry_point: Some(0),
             m: 2,
@@ -338,7 +418,7 @@ mod tests {
         };
         let query = node(3, vec![1.0, 0.0], Vec::new());
 
-        let neighbours = calculate_most_similiar_neighbours(&index.nodes[0], &query, &index);
+        let neighbours = calculate_most_similiar_neighbours(&index.nodes[0], &query, &index, 0);
 
         assert_eq!(neighbours.len(), 2);
         assert_eq!(neighbours[0].0, 2);
@@ -350,19 +430,20 @@ mod tests {
     fn prune_keeps_only_the_m_most_similar_neighbours() {
         let mut index = HnswIndex {
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![1, 2, 3]),
-                node(1, vec![1.0, 0.0], vec![0]),
-                node(2, vec![0.0, 1.0], vec![0]),
-                node(3, vec![0.8, 0.2], vec![0]),
+                node(0, vec![1.0, 0.0], vec![vec![1, 2, 3]]),
+                node(1, vec![1.0, 0.0], vec![vec![0]]),
+                node(2, vec![0.0, 1.0], vec![vec![0]]),
+                node(3, vec![0.8, 0.2], vec![vec![0]]),
             ],
+            max_layer: 3,
             entry_point: Some(0),
             m: 2,
             ef: 3,
         };
 
-        super::prune(&mut index, 0);
+        super::prune(&mut index, 0, 0);
 
-        assert_eq!(index.nodes[0].neighbours, vec![1, 3]);
+        assert_eq!(index.nodes[0].neighbours[0], vec![1, 3]);
     }
 
     #[test]
@@ -377,7 +458,7 @@ mod tests {
             index
                 .nodes
                 .iter()
-                .all(|node| node.neighbours.len() <= index.m)
+                .all(|node| node.neighbours[0].len() <= index.m)
         );
     }
 }
