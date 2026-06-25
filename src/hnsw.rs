@@ -289,8 +289,8 @@ pub fn calculate_most_similiar_neighbours(
 #[cfg(test)]
 mod tests {
     use super::{
-        HnswIndex, Node, calculate_most_similiar_neighbours, insert, insert_node, search_greedy,
-        search_layer,
+        HnswIndex, Node, calculate_most_similiar_neighbours, insert, insert_node, search,
+        search_greedy, search_layer,
     };
 
     fn empty_index() -> HnswIndex {
@@ -394,6 +394,25 @@ mod tests {
         assert_eq!(results[0].0, 0);
         assert_eq!(results[1].0, 2);
         assert!(results[0].1 > results[1].1);
+    }
+
+    #[test]
+    fn search_descends_upper_layers_then_returns_top_k_from_layer_zero() {
+        let index = HnswIndex {
+            nodes: vec![
+                node(0, vec![1.0, 0.0], vec![vec![1], vec![2]]),
+                node(1, vec![0.0, 1.0], vec![vec![0, 2]]),
+                node(2, vec![0.9, 0.1], vec![vec![0, 1], vec![0]]),
+            ],
+            entry_point: Some(0),
+            m: 2,
+            ef: 3,
+            max_layer: 1,
+        };
+
+        let results = search(&index, &[0.8, 0.2], index.ef, 2);
+
+        assert_eq!(results, vec![2, 0]);
     }
 
     #[test]
