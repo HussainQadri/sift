@@ -161,7 +161,7 @@ fn search_greedy(
 
     loop {
         let current_similarity =
-            similarity::cosine_similarity(&index.nodes[current_id].embedding, &query_vector);
+            similarity::cosine_similarity(&index.nodes[current_id].embedding, query_vector);
 
         let most_similar_neighbours = calculate_most_similiar_neighbours(
             &index.nodes[current_id],
@@ -277,7 +277,7 @@ pub fn calculate_most_similiar_neighbours(
         .map(|&node_id| {
             (
                 node_id,
-                similarity::cosine_similarity(&all_nodes.nodes[node_id].embedding, &query_vector),
+                similarity::cosine_similarity(&all_nodes.nodes[node_id].embedding, query_vector),
             )
         })
         .collect();
