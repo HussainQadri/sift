@@ -10,21 +10,17 @@ impl HnswIndex {
             nodes: Vec::new(),
             entry_point: None,
             max_layer: 0,
-            m: m,
-            ef: ef,
+            m,
+            ef,
         }
     }
 
     pub fn search(&self, embedding_vec: &Vec<f32>) -> Vec<usize> {
-        search(self, &embedding_vec, self.ef, 3)
+        search(self, embedding_vec, self.ef, 3)
     }
 
     pub fn insert(&mut self, embedding_vec: Vec<f32>) {
         insert(self, embedding_vec);
-    }
-
-    pub fn get_index_len(&self) -> usize {
-        self.nodes.len()
     }
 }
 
