@@ -107,7 +107,13 @@ pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
                 current_id = best_id;
             }
         }
+        let new_node_id = node_to_insert.id;
         index.nodes.push(node_to_insert);
+
+        if node_max_layer > old_max_layer {
+            index.entry_point = Some(new_node_id);
+            index.max_layer = node_max_layer;
+        }
 
         for (neighbour_id, node_layer) in nodes_to_prune {
             prune(index, neighbour_id, node_layer);
