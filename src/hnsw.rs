@@ -250,6 +250,21 @@ fn search_layer(
     results
 }
 
+pub fn search(index: &HnswIndex, query_vector: &[f32], ef: usize, top_k: usize) -> Vec<usize> {
+    let mut current_id = index.entry_point.unwrap();
+
+    for layer in (1..=index.max_layer).rev() {
+        current_id = search_greedy(index, query_vector, layer, current_id);
+    }
+
+    let results: Vec<(usize, f32)> = search_layer(index, query_vector, current_id, ef, 0);
+    results
+        .into_iter()
+        .map(|(id, _embedding)| id)
+        .take(top_k)
+        .collect()
+}
+
 pub fn calculate_most_similiar_neighbours(
     current_node: &Node,
     query_vector: &[f32],
