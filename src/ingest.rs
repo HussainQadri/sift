@@ -29,7 +29,9 @@ pub fn ingest_directory(
         let tree = treesitter_parse::generate_tree(file_path, &spec);
         let source_code = fs::read_to_string(file_path)?;
         let functions = treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
-        let indexed_functions = index::create_indexed_functions(model, functions, file_path)?;
+        let start_id = all_indexed_functions.len();
+        let indexed_functions =
+            index::create_indexed_functions(model, functions, file_path, start_id)?;
         all_indexed_functions.extend(indexed_functions);
     }
 

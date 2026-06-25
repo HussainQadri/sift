@@ -19,8 +19,8 @@ impl HnswIndex {
         search(self, embedding_vec, self.ef, 3)
     }
 
-    pub fn insert(&mut self, embedding_vec: Vec<f32>) {
-        insert(self, embedding_vec);
+    pub fn insert(&mut self, record_id: usize, embedding_vec: Vec<f32>) {
+        insert(self, record_id, embedding_vec);
     }
 }
 
@@ -29,6 +29,7 @@ pub struct Node {
     id: usize,
     embedding: Vec<f32>,
     neighbours: Vec<Vec<usize>>,
+    record_id: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -67,12 +68,13 @@ pub struct HnswIndex {
     ef: usize,
 }
 
-pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>) -> Node {
+pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>, record_id: usize) -> Node {
     let random_max_layer = get_random_level(index.m);
     Node {
         id: index.nodes.len(),
         embedding: embedding_vec,
         neighbours: vec![Vec::new(); random_max_layer + 1],
+        record_id,
     }
 }
 
@@ -85,8 +87,8 @@ pub fn get_random_level(m: usize) -> usize {
     let u: f32 = rng.random_range(f32::MIN_POSITIVE..1.0);
     ((-u.ln() * m_l).floor() as usize).min(MAX_ALLOWED_LAYER)
 }
-pub fn insert(index: &mut HnswIndex, embedding_vec: Vec<f32>) {
-    let node_to_insert = create_node(index, embedding_vec);
+pub fn insert(index: &mut HnswIndex, record_id: usize, embedding_vec: Vec<f32>) {
+    let node_to_insert = create_node(index, embedding_vec, record_id);
     insert_node(index, node_to_insert);
 }
 
@@ -282,7 +284,7 @@ pub fn search(index: &HnswIndex, query_vector: &[f32], ef: usize, top_k: usize) 
     let results: Vec<(usize, f32)> = search_layer(index, query_vector, current_id, ef, 0);
     results
         .into_iter()
-        .map(|(id, _embedding)| id)
+        .map(|(id, _embedding)| index.nodes[id].record_id)
         .take(top_k)
         .collect()
 }
@@ -330,6 +332,7 @@ mod tests {
             id,
             embedding,
             neighbours,
+            record_id: id,
         }
     }
 
@@ -337,7 +340,7 @@ mod tests {
     fn first_insert_sets_entry_point_and_stores_node() {
         let mut index = empty_index();
 
-        insert(&mut index, vec![1.0, 0.0]);
+        insert(&mut index, 0, vec![1.0, 0.0]);
 
         assert_eq!(index.entry_point, Some(0));
         assert_eq!(index.nodes.len(), 1);
@@ -350,8 +353,8 @@ mod tests {
     fn second_insert_links_new_node_bidirectionally_to_entry_point() {
         let mut index = empty_index();
 
-        insert(&mut index, vec![1.0, 0.0]);
-        insert(&mut index, vec![0.9, 0.1]);
+        insert(&mut index, 0, vec![1.0, 0.0]);
+        insert(&mut index, 0, vec![0.9, 0.1]);
 
         assert_eq!(index.nodes.len(), 2);
         assert_eq!(index.nodes[0].neighbours[0], vec![1]);
@@ -371,7 +374,7 @@ mod tests {
             max_layer: 0,
         };
 
-        insert(&mut index, vec![0.0, 0.9]);
+        insert(&mut index, 0, vec![0.0, 0.9]);
 
         assert_eq!(index.nodes[2].neighbours[0], vec![1, 0]);
         assert_eq!(index.nodes[1].neighbours[0], vec![0, 2]);
@@ -503,7 +506,7 @@ mod tests {
         let mut index = empty_index();
 
         for i in 0..20 {
-            insert(&mut index, vec![1.0, i as f32 / 100.0]);
+            insert(&mut index, 0, vec![1.0, i as f32 / 100.0]);
         }
 
         assert!(

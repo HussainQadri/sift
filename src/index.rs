@@ -13,12 +13,14 @@ pub struct IndexedFunction {
     pub(crate) source: String,
     pub(crate) line_number: usize,
     pub(crate) embedding: Vec<f32>,
+    pub(crate) id: usize,
 }
 
 pub fn create_indexed_functions(
     model: &mut TextEmbedding,
     functions: Vec<ExtractedFunction>,
     path: &Path,
+    start_id: usize,
 ) -> anyhow::Result<Vec<IndexedFunction>> {
     let texts: Vec<&String> = functions
         .iter()
@@ -30,12 +32,14 @@ pub fn create_indexed_functions(
     let indexed_functions = functions
         .into_iter()
         .zip(embeddings)
-        .map(|(function, embedding)| IndexedFunction {
+        .enumerate()
+        .map(|(offset, (function, embedding))| IndexedFunction {
             path: path.display().to_string(),
             header: function.header,
             source: function.source,
             line_number: function.line_number,
             embedding,
+            id: start_id + offset,
         })
         .collect();
     Ok(indexed_functions)
@@ -91,6 +95,7 @@ mod tests {
             source: "pub fn load_index() {}".to_string(),
             line_number: 47,
             embedding: vec![0.25, -0.5, 1.0],
+            id: 0,
         }];
 
         save_index_at(&records, &index_path).unwrap();

@@ -4,6 +4,7 @@ use crate::embeddings_generator;
 use crate::hnsw::HnswIndex;
 use crate::index;
 use crate::similarity::cosine_similarity;
+use std::collections::HashMap;
 use std::path::Path;
 
 pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
@@ -17,11 +18,23 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let mut index = HnswIndex::new(8, 32);
     println!("HNSW OUTPUT");
     for indexed_function in &loaded_indexed_functions {
-        index.insert(indexed_function.embedding.clone());
+        index.insert(indexed_function.id, indexed_function.embedding.clone());
     }
+
+    let records_by_id: HashMap<usize, &index::IndexedFunction> = loaded_indexed_functions
+        .iter()
+        .map(|record| (record.id, record))
+        .collect();
+    // These are record_ids from the JSON not the internal HNSW index
     let result_ids = index.search(&query);
-    for id in result_ids {
-        let indexed_function = &loaded_indexed_functions[id];
+    for record_id in result_ids {
+        let indexed_function = match records_by_id.get(&record_id) {
+            Some(value) => value,
+            None => {
+                eprintln!("HNSW returned unknown record id: {record_id}");
+                continue;
+            }
+        };
         let score = cosine_similarity(&query, &indexed_function.embedding);
 
         println!("{:.3} {}: ", score, indexed_function.path);
