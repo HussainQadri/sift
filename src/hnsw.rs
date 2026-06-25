@@ -1,9 +1,33 @@
-#![allow(dead_code)]
 use crate::similarity;
 use rand::RngExt;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashSet};
-const MAX_ALLOWED_LAYER: usize = 16;
+
+impl HnswIndex {
+    pub fn new(m: usize, ef: usize) -> Self {
+        assert!(m > 1);
+        Self {
+            nodes: Vec::new(),
+            entry_point: None,
+            max_layer: 0,
+            m: m,
+            ef: ef,
+        }
+    }
+
+    pub fn search(&self, embedding_vec: &Vec<f32>) -> Vec<usize> {
+        search(self, &embedding_vec, self.ef, 3)
+    }
+
+    pub fn insert(&mut self, embedding_vec: Vec<f32>) {
+        insert(self, embedding_vec);
+    }
+
+    pub fn get_index_len(&self) -> usize {
+        self.nodes.len()
+    }
+}
+
 #[derive(Clone)]
 pub struct Node {
     id: usize,
@@ -55,6 +79,8 @@ pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>) -> Node {
         neighbours: vec![Vec::new(); random_max_layer + 1],
     }
 }
+
+const MAX_ALLOWED_LAYER: usize = 16;
 
 pub fn get_random_level(m: usize) -> usize {
     let mut rng = rand::rng();
