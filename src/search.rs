@@ -1,10 +1,10 @@
-use std::path::Path;
-
 use crate::cli;
 use crate::cli_output;
 use crate::embeddings_generator;
+use crate::hnsw::HnswIndex;
 use crate::index;
 use crate::similarity::cosine_similarity;
+use std::path::Path;
 
 pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let keywords = match args.keywords {
@@ -14,6 +14,28 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let top_k_results = args.top;
     let query = embeddings_generator::create_query_embedding(&keywords)?;
     let loaded_indexed_functions = index::load_index()?;
+    let mut index = HnswIndex::new(8, 32);
+    println!("HNSW OUTPUT");
+    for indexed_function in &loaded_indexed_functions {
+        index.insert(indexed_function.embedding.clone());
+    }
+    let result_ids = index.search(&query);
+    for id in result_ids {
+        let indexed_function = &loaded_indexed_functions[id];
+        let score = cosine_similarity(&query, &indexed_function.embedding);
+
+        println!("{:.3} {}: ", score, indexed_function.path);
+
+        let extension = Path::new(&indexed_function.path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
+
+        print!("\x1b[32m{}:\x1b[0m ", indexed_function.line_number);
+        cli_output::print_highlighted(&indexed_function.header, extension);
+        println!("\n");
+    }
+    println!("BRUTE FORCE OUTPUT");
     let mut result: Vec<(index::IndexedFunction, f32)> = loaded_indexed_functions
         .into_iter()
         .map(|indexed_function| {
