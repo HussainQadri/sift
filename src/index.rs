@@ -1,6 +1,3 @@
-use crate::embeddings_generator;
-use crate::treesitter_parse::ExtractedFunction;
-use fastembed::TextEmbedding;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
@@ -14,35 +11,6 @@ pub struct IndexedFunction {
     pub(crate) line_number: usize,
     pub(crate) embedding: Vec<f32>,
     pub(crate) id: usize,
-}
-
-pub fn create_indexed_functions(
-    model: &mut TextEmbedding,
-    functions: Vec<ExtractedFunction>,
-    path: &Path,
-    start_id: usize,
-) -> anyhow::Result<Vec<IndexedFunction>> {
-    let texts: Vec<&String> = functions
-        .iter()
-        .map(|function_struct| &function_struct.source)
-        .collect();
-
-    let embeddings = embeddings_generator::create_function_embedding(model, texts)?;
-
-    let indexed_functions = functions
-        .into_iter()
-        .zip(embeddings)
-        .enumerate()
-        .map(|(offset, (function, embedding))| IndexedFunction {
-            path: path.display().to_string(),
-            header: function.header,
-            source: function.source,
-            line_number: function.line_number,
-            embedding,
-            id: start_id + offset,
-        })
-        .collect();
-    Ok(indexed_functions)
 }
 
 pub fn save_index(indexed_functions: &[IndexedFunction]) -> anyhow::Result<()> {

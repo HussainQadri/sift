@@ -1,3 +1,4 @@
+use crate::embeddings_generator;
 use crate::index;
 use crate::language_specs;
 use crate::treesitter_parse;
@@ -5,11 +6,20 @@ use fastembed::TextEmbedding;
 use ignore::Walk;
 use std::fs;
 
+const EMBEDDING_BATCH_SIZE: usize = 64;
+
+struct PendingFunction {
+    path: String,
+    header: String,
+    source: String,
+    line_number: usize,
+}
 pub fn ingest_directory(
     model: &mut TextEmbedding,
     path: &std::path::PathBuf,
 ) -> anyhow::Result<Vec<index::IndexedFunction>> {
     let mut all_indexed_functions = Vec::new();
+    let mut pending_functions = Vec::new();
 
     for result in Walk::new(path) {
         let entry = match result {
@@ -29,11 +39,52 @@ pub fn ingest_directory(
         let tree = treesitter_parse::generate_tree(file_path, &spec);
         let source_code = fs::read_to_string(file_path)?;
         let functions = treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
-        let start_id = all_indexed_functions.len();
-        let indexed_functions =
-            index::create_indexed_functions(model, functions, file_path, start_id)?;
-        all_indexed_functions.extend(indexed_functions);
+        for function in functions {
+            pending_functions.push(PendingFunction {
+                source: function.source,
+                header: function.header,
+                line_number: function.line_number,
+                path: file_path.display().to_string(),
+            });
+
+            if pending_functions.len() >= EMBEDDING_BATCH_SIZE {
+                flush_pending_functions(model, &mut pending_functions, &mut all_indexed_functions)?;
+            }
+        }
     }
 
+    flush_pending_functions(model, &mut pending_functions, &mut all_indexed_functions)?;
     Ok(all_indexed_functions)
+}
+
+fn flush_pending_functions(
+    model: &mut TextEmbedding,
+    pending_function_list: &mut Vec<PendingFunction>,
+    all_indexed_functions: &mut Vec<index::IndexedFunction>,
+) -> anyhow::Result<()> {
+    if pending_function_list.is_empty() {
+        return Ok(());
+    }
+
+    let texts = pending_function_list
+        .iter()
+        .map(|pending_function| &pending_function.source)
+        .collect();
+    let embeddings = embeddings_generator::create_function_embedding(model, texts)?;
+    let start_id = all_indexed_functions.len();
+
+    for (offset, (pending_function, embedding)) in
+        pending_function_list.drain(..).zip(embeddings).enumerate()
+    {
+        all_indexed_functions.push(index::IndexedFunction {
+            path: pending_function.path,
+            header: pending_function.header,
+            source: pending_function.source,
+            line_number: pending_function.line_number,
+            embedding,
+            id: start_id + offset,
+        })
+    }
+
+    Ok(())
 }
