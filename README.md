@@ -8,7 +8,7 @@ Sift is local semantic code search for codebases. Ask in natural language and ju
   <img src="assets/sift-demo.gif" alt="Sift CLI demo">
 </p>
 
-It uses Tree-sitter to extract functions, embeds their full source with a code-oriented model, stores the index locally, and ranks matches with cosine similarity.
+It uses Tree-sitter to extract functions, embeds their full source with a code-oriented model, stores the index locally, and searches it with an in-memory HNSW index while keeping exact cosine search around as a baseline.
 
 ## Install
 
@@ -44,7 +44,7 @@ Ingestion:
 directory
 -> source files
 -> Tree-sitter function extraction
--> Jina code embeddings
+-> length-aware batches of Jina code embeddings
 -> .sift-index/index.json
 ```
 
@@ -54,7 +54,8 @@ Search:
 query
 -> Jina query embedding
 -> load .sift-index/index.json
--> cosine similarity against saved function embeddings
+-> rebuild an in-memory HNSW index from saved embeddings
+-> compare HNSW results with exact cosine results while HNSW is being tuned
 -> print top matches with source locations
 ```
 
@@ -64,13 +65,11 @@ score.
 
 ## Roadmap
 
-Current search uses exact cosine similarity over the saved JSON index.
-
-An experimental in-memory HNSW module exists, but it is not yet wired into the CLI. The next step is to integrate it into search and benchmark recall/latency against exact search.
+Current search rebuilds an in-memory HNSW graph from the saved JSON index and
+prints exact cosine results alongside it while recall is being checked.
 
 Planned work:
 
-- Batch embeddings during ingestion.
 - Add ranking/evaluation queries and identifier-aware retrieval signals.
-- Implement in-memory HNSW search and compare it against exact cosine search.
+- Tune HNSW parameters and measure recall against exact cosine search.
 - Replace JSON vector/graph storage with a compact persistent representation.
