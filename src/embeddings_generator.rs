@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+use ort::ep::CUDA;
+use std::path::PathBuf;
 
 pub fn create_function_embedding(
     model: &mut TextEmbedding,
@@ -24,7 +24,9 @@ fn model_cache_dir() -> PathBuf {
 }
 pub fn create_embedding_model() -> anyhow::Result<TextEmbedding> {
     let options = InitOptions::new(EmbeddingModel::JinaEmbeddingsV2BaseCode)
-        .with_cache_dir(model_cache_dir());
-
+        .with_cache_dir(model_cache_dir())
+        .with_execution_providers(vec![
+            CUDA::default().with_device_id(0).build().error_on_failure(),
+        ]);
     TextEmbedding::try_new(options)
 }
