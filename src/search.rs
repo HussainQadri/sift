@@ -15,7 +15,7 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let top_k_results = args.top;
     let query = embeddings_generator::create_query_embedding(&keywords)?;
     let loaded_indexed_functions = index::load_index()?;
-    let mut index = HnswIndex::new(8, 32);
+    let mut index = HnswIndex::new(32, 256);
     println!("HNSW OUTPUT");
     for indexed_function in &loaded_indexed_functions {
         index.insert(indexed_function.id, indexed_function.embedding.clone());
