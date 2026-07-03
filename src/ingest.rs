@@ -36,8 +36,8 @@ pub fn ingest_directory(
             Err(_) => continue,
         };
 
-        let tree = treesitter_parse::generate_tree(file_path, &spec);
         let source_code = fs::read_to_string(file_path)?;
+        let tree = treesitter_parse::generate_tree_from_source(&spec, &source_code);
         let functions = treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
 
         for function in functions {

@@ -1,6 +1,4 @@
 use crate::language_specs::LanguageSpec;
-use std::fs;
-use std::path::Path;
 use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 
 pub struct ExtractedFunction {
@@ -9,14 +7,13 @@ pub struct ExtractedFunction {
     pub(crate) line_number: usize,
 }
 
-pub fn generate_tree(path: &Path, spec: &LanguageSpec) -> tree_sitter::Tree {
+pub fn generate_tree_from_source(spec: &LanguageSpec, source_code: &str) -> tree_sitter::Tree {
     let mut parser = Parser::new();
     parser
         .set_language(&spec.language)
         .expect("Error loading language grammar");
 
-    let source_code = fs::read_to_string(path).expect("Failed to read source file");
-    let tree: tree_sitter::Tree = parser.parse(&source_code, None).unwrap();
+    let tree: tree_sitter::Tree = parser.parse(source_code, None).unwrap();
 
     tree
 }
