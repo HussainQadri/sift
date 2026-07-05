@@ -169,10 +169,20 @@ fn prune(index: &mut HnswIndex, node_to_prune_id: usize, layer: usize) {
     scored.sort_by(|a, b| b.1.total_cmp(&a.1));
 
     index.nodes[node_to_prune_id].neighbours[layer] = scored
-        .into_iter()
+        .iter()
         .take(index.m)
-        .map(|(id, _score)| id)
+        .map(|(id, _score)| *id)
         .collect();
+    let removed: Vec<usize> = scored
+        .iter()
+        .skip(index.m)
+        .map(|(id, _score)| *id)
+        .collect();
+    for removed_id in removed {
+        if let Some(neighbours) = index.nodes[removed_id].neighbours.get_mut(layer) {
+            neighbours.retain(|&id| id != node_to_prune_id);
+        }
+    }
 }
 
 fn search_greedy(
@@ -499,6 +509,7 @@ mod tests {
         super::prune(&mut index, 0, 0);
 
         assert_eq!(index.nodes[0].neighbours[0], vec![1, 3]);
+        assert!(!index.nodes[2].neighbours[0].contains(&0));
     }
 
     #[test]
