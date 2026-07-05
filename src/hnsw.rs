@@ -15,8 +15,8 @@ impl HnswIndex {
         }
     }
 
-    pub fn search(&self, embedding_vec: &[f32]) -> Vec<usize> {
-        search(self, embedding_vec, self.ef, 3)
+    pub fn search(&self, embedding_vec: &[f32], top_k: usize) -> Vec<usize> {
+        search(self, embedding_vec, self.ef, top_k)
     }
 
     pub fn insert(&mut self, record_id: usize, embedding_vec: Vec<f32>) {

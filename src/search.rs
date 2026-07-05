@@ -26,7 +26,7 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
         .map(|record| (record.id, record))
         .collect();
     // These are record_ids from the JSON not the internal HNSW index
-    let result_ids = index.search(&query);
+    let result_ids = index.search(&query, top_k_results);
     for record_id in result_ids {
         let indexed_function = match records_by_id.get(&record_id) {
             Some(value) => value,
