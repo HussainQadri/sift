@@ -13,14 +13,18 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
         None => anyhow::bail!("Please enter a query."),
     };
     let top_k_results = args.top;
-    let query = embeddings_generator::create_query_embedding(&keywords)?;
     let loaded_indexed_functions = index::load_index()?;
+
+    if loaded_indexed_functions.is_empty() {
+        anyhow::bail!("The HNSW index is empty, run `sift ingest <path>` first.");
+    }
+    let query = embeddings_generator::create_query_embedding(&keywords)?;
     let mut index = HnswIndex::new(32, 256);
-    println!("HNSW OUTPUT");
     for indexed_function in &loaded_indexed_functions {
         index.insert(indexed_function.id, indexed_function.embedding.clone());
     }
 
+    println!("HNSW OUTPUT");
     let records_by_id: HashMap<usize, &index::IndexedFunction> = loaded_indexed_functions
         .iter()
         .map(|record| (record.id, record))
