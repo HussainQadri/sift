@@ -26,7 +26,7 @@ impl HnswIndex {
 
 #[derive(Clone)]
 pub struct Node {
-    id: usize,
+    id: usize, // Internal HNSW id, record_ids are translated into this id.
     embedding: Vec<f32>,
     neighbours: Vec<Vec<usize>>,
     record_id: usize,
