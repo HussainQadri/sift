@@ -21,13 +21,16 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let query = embeddings_generator::create_query_embedding(&keywords)?;
     let mut index = HnswIndex::new(32, 256);
     for indexed_function in &loaded_indexed_functions {
-        index.insert(indexed_function.id, indexed_function.embedding.clone());
+        index.insert(
+            indexed_function.record_id,
+            indexed_function.embedding.clone(),
+        );
     }
 
     println!("HNSW OUTPUT");
     let records_by_id: HashMap<usize, &index::IndexedFunction> = loaded_indexed_functions
         .iter()
-        .map(|record| (record.id, record))
+        .map(|record| (record.record_id, record))
         .collect();
     // These are record_ids from the JSON not the internal HNSW index
     let result_ids = index.search(&query, top_k_results);

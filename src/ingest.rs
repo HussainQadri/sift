@@ -100,7 +100,7 @@ fn embed_pending_batch(
             source: pending_function.source,
             line_number: pending_function.line_number,
             embedding,
-            id: start_id + offset,
+            record_id: start_id + offset,
         })
     }
 

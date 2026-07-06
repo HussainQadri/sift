@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
 const INDEX_PATH: &str = ".sift-index/index.json";
+const HNSW_INDEX_PATH: &str = ".sift-index/hnsw.bin";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IndexedFunction {
@@ -10,11 +11,43 @@ pub struct IndexedFunction {
     pub(crate) source: String,
     pub(crate) line_number: usize,
     pub(crate) embedding: Vec<f32>,
-    pub(crate) id: usize,
+    pub(crate) record_id: usize,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PersistedHnswIndex {
+    nodes: Vec<PersistedHnswNode>,
+    entry_point: Option<usize>,
+    max_layer: usize,
+    m: usize,
+    ef: usize,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PersistedHnswNode {
+    record_id: usize,
+    neighbours: Vec<Vec<usize>>,
 }
 
 pub fn save_index(indexed_functions: &[IndexedFunction]) -> anyhow::Result<()> {
     save_index_at(indexed_functions, Path::new(INDEX_PATH))
+}
+
+pub fn save_hnsw_index_at(
+    persisted_hnsw_graph: &PersistedHnswIndex,
+    hnsw_path: &Path,
+) -> anyhow::Result<()> {
+    if let Some(parent) = hnsw_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let bytes = postcard::to_allocvec(&persisted_hnsw_graph)?;
+    fs::write(hnsw_path, bytes)?;
+    Ok(())
+}
+
+pub fn save_hnsw_index(persisted_hnsw_index: &PersistedHnswIndex) -> anyhow::Result<()> {
+    save_hnsw_index_at(persisted_hnsw_index, Path::new(HNSW_INDEX_PATH))?;
+    Ok(())
 }
 
 fn save_index_at(indexed_functions: &[IndexedFunction], index_path: &Path) -> anyhow::Result<()> {
@@ -63,7 +96,7 @@ mod tests {
             source: "pub fn load_index() {}".to_string(),
             line_number: 47,
             embedding: vec![0.25, -0.5, 1.0],
-            id: 0,
+            record_id: 0,
         }];
 
         save_index_at(&records, &index_path).unwrap();
