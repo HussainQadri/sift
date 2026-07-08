@@ -22,6 +22,23 @@ impl HnswIndex {
     pub fn insert(&mut self, record_id: usize, embedding_vec: Vec<f32>) {
         insert(self, record_id, embedding_vec);
     }
+
+    pub fn get_nodes(&self) -> &Vec<Node> {
+        &self.nodes
+    }
+
+    pub fn get_entry_point(&self) -> Option<usize> {
+        self.entry_point
+    }
+    pub fn get_max_layer(&self) -> usize {
+        self.max_layer
+    }
+    pub fn get_m(&self) -> usize {
+        self.m
+    }
+    pub fn get_ef(&self) -> usize {
+        self.ef
+    }
 }
 
 #[derive(Clone)]
