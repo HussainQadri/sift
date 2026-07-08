@@ -15,18 +15,18 @@ pub struct IndexedFunction {
 }
 
 #[derive(Serialize, Deserialize)]
-struct PersistedHnswIndex {
-    nodes: Vec<PersistedHnswNode>,
-    entry_point: Option<usize>,
-    max_layer: usize,
-    m: usize,
-    ef: usize,
+pub struct PersistedHnswIndex {
+    pub(crate) nodes: Vec<PersistedHnswNode>,
+    pub(crate) entry_point: Option<usize>,
+    pub(crate) max_layer: usize,
+    pub(crate) m: usize,
+    pub(crate) ef: usize,
 }
 
 #[derive(Serialize, Deserialize)]
-struct PersistedHnswNode {
-    record_id: usize,
-    neighbours: Vec<Vec<usize>>,
+pub struct PersistedHnswNode {
+    pub(crate) record_id: usize,
+    pub(crate) neighbours: Vec<Vec<usize>>,
 }
 
 pub fn save_index(indexed_functions: &[IndexedFunction]) -> anyhow::Result<()> {

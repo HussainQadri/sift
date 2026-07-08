@@ -22,8 +22,10 @@ fn main() -> anyhow::Result<()> {
                 None => std::path::PathBuf::from("."),
             };
 
-            let all_indexed_functions = ingest::ingest_directory(&mut model, &target_path)?;
-            index::save_index(&all_indexed_functions)?;
+            let ingest_output = ingest::ingest_directory(&mut model, &target_path)?;
+            index::save_index(&ingest_output.indexed_functions)?;
+            let hnsw_index = ingest_output.hnsw_index;
+            index::save_hnsw_index(&hnsw_index)?;
         }
 
         None => {

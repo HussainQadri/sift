@@ -43,10 +43,10 @@ impl HnswIndex {
 
 #[derive(Clone)]
 pub struct Node {
-    id: usize, // Internal HNSW id, record_ids are translated into this id.
-    embedding: Vec<f32>,
-    neighbours: Vec<Vec<usize>>,
-    record_id: usize,
+    pub(crate) id: usize, // Internal HNSW id, record_ids are translated into this id.
+    pub(crate) embedding: Vec<f32>,
+    pub(crate) neighbours: Vec<Vec<usize>>,
+    pub(crate) record_id: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -78,11 +78,11 @@ impl PartialOrd for ScoredNode {
 impl Eq for ScoredNode {}
 
 pub struct HnswIndex {
-    nodes: Vec<Node>,
-    entry_point: Option<usize>,
-    max_layer: usize,
-    m: usize,
-    ef: usize,
+    pub(crate) nodes: Vec<Node>,
+    pub(crate) entry_point: Option<usize>,
+    pub(crate) max_layer: usize,
+    pub(crate) m: usize,
+    pub(crate) ef: usize,
 }
 
 pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>, record_id: usize) -> Node {
