@@ -1,0 +1,3 @@
+sift benchmark --limit 50 --m 32 --ef 512 --k 1 --k 5 --k 10
+sift benchmark --limit 50 --m 48 --ef 512 --k 1 --k 5 --k 10
+sift benchmark --limit 50 --m 64 --ef 512 --k 1 --k 5 --k 10

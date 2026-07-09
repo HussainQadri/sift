@@ -1,4 +1,5 @@
-use crate::{cli::Commands, search::query_search};
+use crate::{benchmark::BenchmarkConfig, cli::Commands, search::query_search};
+mod benchmark;
 mod search;
 use clap::Parser;
 mod cli;
@@ -25,6 +26,22 @@ fn main() -> anyhow::Result<()> {
             let all_indexed_functions = ingest::ingest_directory(&mut model, &target_path)?;
             index::save_index(&all_indexed_functions)?;
         }
+
+        Some(Commands::Benchmark {
+            queries,
+            queries_file,
+            top_k,
+            limit,
+            m,
+            ef,
+        }) => benchmark::run(BenchmarkConfig {
+            queries,
+            queries_file,
+            top_k,
+            limit,
+            m,
+            ef,
+        })?,
 
         None => {
             query_search(args)?;

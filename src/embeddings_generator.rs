@@ -16,6 +16,16 @@ pub fn create_query_embedding(keywords: &String) -> anyhow::Result<Vec<f32>> {
     let query_embedding = keyword_embedding.pop().unwrap();
     Ok(query_embedding)
 }
+
+pub fn create_query_embeddings(
+    model: &mut TextEmbedding,
+    queries: &[String],
+) -> anyhow::Result<Vec<Vec<f32>>> {
+    let texts: Vec<&String> = queries.iter().collect();
+    let embeddings = model.embed(texts, None)?;
+    Ok(embeddings)
+}
+
 fn model_cache_dir() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from(".cache"))
