@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
+use tempfile::tempfile;
 
 const INDEX_PATH: &str = ".sift-index/index.json";
 const HNSW_INDEX_PATH: &str = ".sift-index/hnsw.bin";
@@ -14,7 +15,7 @@ pub struct IndexedFunction {
     pub(crate) record_id: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub struct PersistedHnswIndex {
     pub(crate) nodes: Vec<PersistedHnswNode>,
     pub(crate) entry_point: Option<usize>,
@@ -23,7 +24,7 @@ pub struct PersistedHnswIndex {
     pub(crate) ef: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub struct PersistedHnswNode {
     pub(crate) record_id: usize,
     pub(crate) neighbours: Vec<Vec<usize>>,
@@ -111,4 +112,32 @@ mod tests {
 
         fs::remove_dir_all(test_dir).unwrap();
     }
+}
+
+#[test]
+
+fn hnsw_index_round_trips() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let path = temp_dir.path().join("hnsw.bin");
+    let original_hnsw_index = PersistedHnswIndex {
+        nodes: vec![
+            PersistedHnswNode {
+                record_id: 10,
+                neighbours: vec![vec![1], vec![]],
+            },
+            PersistedHnswNode {
+                record_id: 20,
+                neighbours: vec![vec![0]],
+            },
+        ],
+        ef: 8,
+        entry_point: Some(0),
+        m: 32,
+        max_layer: 1,
+    };
+
+    save_hnsw_index_at(&original_hnsw_index, &path).unwrap();
+    let bytes = fs::read(path).unwrap();
+    let loaded: PersistedHnswIndex = postcard::from_bytes(&bytes).unwrap();
+    assert_eq!(loaded, original_hnsw_index);
 }
