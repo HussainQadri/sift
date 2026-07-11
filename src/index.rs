@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
-use tempfile::tempfile;
 
 const INDEX_PATH: &str = ".sift-index/index.json";
 pub const HNSW_INDEX_PATH: &str = ".sift-index/hnsw.bin";
