@@ -4,6 +4,7 @@ use crate::embeddings_generator;
 use crate::hnsw;
 use crate::hnsw::HnswIndex;
 use crate::index;
+use crate::index::IndexedFunction;
 use crate::index::PersistedHnswIndex;
 use crate::similarity::cosine_similarity;
 use std::collections::HashMap;
@@ -19,10 +20,23 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let loaded_indexed_functions = index::load_index()?;
 
     if loaded_indexed_functions.is_empty() {
-        anyhow::bail!("The HNSW index is empty, run `sift ingest <path>` first.");
+        anyhow::bail!("The index is empty, run `sift ingest <path>` first.");
     }
 
     let query = embeddings_generator::create_query_embedding(&keywords)?;
+    if args.hnsw {
+        search_using_hnsw(&query, &loaded_indexed_functions, top_k_results)?;
+    } else {
+        search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?;
+    }
+    Ok(())
+}
+
+pub fn search_using_hnsw(
+    query: &[f32],
+    loaded_indexed_functions: &[IndexedFunction],
+    top_k_results: usize,
+) -> anyhow::Result<()> {
     // Read hnsw.bin, deserialize, convert each persisted node to runtime node
     // Assign Node.id from node's vector position
     // Copy graph config into runtime HnswIndex
@@ -80,8 +94,15 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
         cli_output::print_highlighted(&indexed_function.header, extension);
         println!("\n");
     }
+    Ok(())
+}
+pub fn search_using_brute_force(
+    query: &[f32],
+    loaded_indexed_functions: &[IndexedFunction],
+    top_k_results: usize,
+) -> anyhow::Result<()> {
     println!("BRUTE FORCE OUTPUT");
-    let mut result: Vec<(index::IndexedFunction, f32)> = loaded_indexed_functions
+    let mut result: Vec<(&index::IndexedFunction, f32)> = loaded_indexed_functions
         .into_iter()
         .map(|indexed_function| {
             let score = cosine_similarity(&query, &indexed_function.embedding);

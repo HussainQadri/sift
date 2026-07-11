@@ -12,6 +12,9 @@ pub struct Cli {
     #[arg(long, default_value_t = 3)]
     pub top: usize,
 
+    #[arg(long)]
+    pub hnsw: bool,
+
     #[command(subcommand)]
     pub commands: Option<Commands>,
 }
