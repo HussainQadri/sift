@@ -72,7 +72,7 @@ pub fn search_using_hnsw(
         .map(|record| (record.record_id, record))
         .collect();
     // These are record_ids from the JSON not the internal HNSW index
-    let result_ids = index.search(&query, top_k_results);
+    let result_ids = index.search(query, top_k_results);
     for record_id in result_ids {
         let indexed_function = match records_by_id.get(&record_id) {
             Some(value) => value,
@@ -81,7 +81,7 @@ pub fn search_using_hnsw(
                 continue;
             }
         };
-        let score = cosine_similarity(&query, &indexed_function.embedding);
+        let score = cosine_similarity(query, &indexed_function.embedding);
 
         println!("{:.3} {}: ", score, indexed_function.path);
 
@@ -103,9 +103,9 @@ pub fn search_using_brute_force(
 ) -> anyhow::Result<()> {
     println!("BRUTE FORCE OUTPUT");
     let mut result: Vec<(&index::IndexedFunction, f32)> = loaded_indexed_functions
-        .into_iter()
+        .iter()
         .map(|indexed_function| {
-            let score = cosine_similarity(&query, &indexed_function.embedding);
+            let score = cosine_similarity(query, &indexed_function.embedding);
 
             (indexed_function, score)
         })
