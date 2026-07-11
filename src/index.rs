@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use tempfile::tempfile;
 
 const INDEX_PATH: &str = ".sift-index/index.json";
-const HNSW_INDEX_PATH: &str = ".sift-index/hnsw.bin";
+pub const HNSW_INDEX_PATH: &str = ".sift-index/hnsw.bin";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IndexedFunction {
@@ -28,6 +28,7 @@ pub struct PersistedHnswIndex {
 pub struct PersistedHnswNode {
     pub(crate) record_id: usize,
     pub(crate) neighbours: Vec<Vec<usize>>,
+    pub(crate) embedding: Vec<f32>,
 }
 
 pub fn save_index(indexed_functions: &[IndexedFunction]) -> anyhow::Result<()> {
@@ -124,10 +125,12 @@ fn hnsw_index_round_trips() {
             PersistedHnswNode {
                 record_id: 10,
                 neighbours: vec![vec![1], vec![]],
+                embedding: vec![2.6, 3.2],
             },
             PersistedHnswNode {
                 record_id: 20,
                 neighbours: vec![vec![0]],
+                embedding: vec![4.6, 3.2],
             },
         ],
         ef: 8,

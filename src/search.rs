@@ -1,10 +1,13 @@
 use crate::cli;
 use crate::cli_output;
 use crate::embeddings_generator;
+use crate::hnsw;
 use crate::hnsw::HnswIndex;
 use crate::index;
+use crate::index::PersistedHnswIndex;
 use crate::similarity::cosine_similarity;
 use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
 
 pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
@@ -18,13 +21,35 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     if loaded_indexed_functions.is_empty() {
         anyhow::bail!("The HNSW index is empty, run `sift ingest <path>` first.");
     }
+
     let query = embeddings_generator::create_query_embedding(&keywords)?;
+    // Read hnsw.bin, deserialize, convert each persisted node to runtime node
+    // Assign Node.id from node's vector position
+    // Copy graph config into runtime HnswIndex
+
+    let bytes = fs::read(index::HNSW_INDEX_PATH)?;
+    let deserialised_hnsw_graph: PersistedHnswIndex = postcard::from_bytes(&bytes)?;
+
     let mut index = HnswIndex::new(32, 256);
-    for indexed_function in &loaded_indexed_functions {
-        index.insert(
-            indexed_function.record_id,
-            indexed_function.embedding.clone(),
-        );
+
+    // Reassign entry_point, ef, m and max_layer to runtime index
+    index.entry_point = deserialised_hnsw_graph.entry_point;
+    index.ef = deserialised_hnsw_graph.ef;
+    index.m = deserialised_hnsw_graph.m;
+    index.max_layer = deserialised_hnsw_graph.max_layer;
+
+    // Now go through nodes in deserialised hnsw, construct runtime Nodes
+    for (persisted_node_pos, persisted_node) in
+        deserialised_hnsw_graph.nodes.into_iter().enumerate()
+    {
+        let runtime_node: hnsw::Node = hnsw::Node {
+            embedding: persisted_node.embedding,
+            id: persisted_node_pos,
+            neighbours: persisted_node.neighbours,
+            record_id: persisted_node.record_id,
+        };
+
+        index.nodes.push(runtime_node);
     }
 
     println!("HNSW OUTPUT");
