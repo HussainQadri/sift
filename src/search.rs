@@ -66,7 +66,6 @@ pub fn search_using_hnsw(
         index.nodes.push(runtime_node);
     }
 
-    println!("HNSW OUTPUT");
     let records_by_id: HashMap<usize, &index::IndexedFunction> = loaded_indexed_functions
         .iter()
         .map(|record| (record.record_id, record))
@@ -101,7 +100,6 @@ pub fn search_using_brute_force(
     loaded_indexed_functions: &[IndexedFunction],
     top_k_results: usize,
 ) -> anyhow::Result<()> {
-    println!("BRUTE FORCE OUTPUT");
     let mut result: Vec<(&index::IndexedFunction, f32)> = loaded_indexed_functions
         .iter()
         .map(|indexed_function| {
