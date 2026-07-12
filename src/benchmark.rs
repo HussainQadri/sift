@@ -8,13 +8,29 @@ use std::{collections::HashSet, fs, path::Path, time::Instant};
 pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<()> {
     // Load queries
     let queries_vec = read_queries_file(queries)?;
+    if queries_vec.is_empty() {
+        anyhow::bail!("Benchmark query file contains no queries");
+    }
+
+    if runs == 0 {
+        anyhow::bail!("Benchmark runs must be greater than zero");
+    }
+
+    if top == 0 {
+        anyhow::bail!("Benchmark top must be greater than zero");
+    }
+
+    let loaded_indexed_functions = index::load_index()?;
+
+    if loaded_indexed_functions.is_empty() {
+        anyhow::bail!("The index is empty, please run `sift ingest` first");
+    }
+
     // For each query, run that query 'run' times with brute force and hnsw whilst timing both
     // Calculate recall once
-
     let mut brute_force_timings = Vec::new();
     let mut hnsw_timings = Vec::new();
     let runtime_hnsw_index = search::load_runtime_index()?;
-    let loaded_indexed_functions = index::load_index()?;
     let mut total_recall_score: f32 = 0.0;
     let query_count = queries_vec.len() as f32;
     for query in queries_vec {
@@ -48,7 +64,6 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
     }
     let average_recall_score = total_recall_score / query_count;
 
-    // TODO: Use match instead of unwrap
     let brute_median = median(&mut brute_force_timings).unwrap();
     let hnsw_median = median(&mut hnsw_timings).unwrap();
     println!("Average recall: {}", average_recall_score);
