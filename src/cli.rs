@@ -1,8 +1,21 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use clap::Subcommand;
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    Ingest { path: Option<std::path::PathBuf> },
+    Ingest {
+        path: Option<std::path::PathBuf>,
+    },
+    Benchmark {
+        #[arg(long)]
+        queries: PathBuf,
+        #[arg(long, default_value_t = 10)]
+        top: usize,
+
+        #[arg(long, default_value_t = 50)]
+        runs: usize,
+    },
 }
 
 #[derive(Parser)]

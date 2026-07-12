@@ -1,6 +1,7 @@
 use crate::{cli::Commands, search::query_search};
 mod search;
 use clap::Parser;
+mod benchmark;
 mod cli;
 mod cli_output;
 mod embeddings_generator;
@@ -26,6 +27,10 @@ fn main() -> anyhow::Result<()> {
             index::save_index(&ingest_output.indexed_functions)?;
             let hnsw_index = ingest_output.hnsw_index;
             index::save_hnsw_index(&hnsw_index)?;
+        }
+
+        Some(Commands::Benchmark { queries, top, runs }) => {
+            benchmark::run_benchmark(&queries, top, runs)?;
         }
 
         None => {
