@@ -25,7 +25,8 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
 
     let query = embeddings_generator::create_query_embedding(&keywords)?;
     let search_results = if args.hnsw {
-        search_using_hnsw(&query, &loaded_indexed_functions, top_k_results)?
+        let index = load_runtime_index()?;
+        search_using_hnsw(index, &query, &loaded_indexed_functions, top_k_results)?
     } else {
         search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?
     };
@@ -35,11 +36,7 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn search_using_hnsw<'a>(
-    query: &[f32],
-    loaded_indexed_functions: &'a [IndexedFunction],
-    top_k_results: usize,
-) -> anyhow::Result<Vec<(&'a IndexedFunction, f32)>> {
+pub fn load_runtime_index() -> anyhow::Result<hnsw::HnswIndex> {
     // Read hnsw.bin, deserialize, convert each persisted node to runtime node
     // Assign Node.id from node's vector position
     // Copy graph config into runtime HnswIndex
@@ -68,7 +65,14 @@ pub fn search_using_hnsw<'a>(
 
         index.nodes.push(runtime_node);
     }
-
+    Ok(index)
+}
+pub fn search_using_hnsw<'a>(
+    index: hnsw::HnswIndex,
+    query: &[f32],
+    loaded_indexed_functions: &'a [IndexedFunction],
+    top_k_results: usize,
+) -> anyhow::Result<Vec<(&'a IndexedFunction, f32)>> {
     let records_by_id: HashMap<usize, &index::IndexedFunction> = loaded_indexed_functions
         .iter()
         .map(|record| (record.record_id, record))
