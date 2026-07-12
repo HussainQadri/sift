@@ -24,19 +24,22 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     }
 
     let query = embeddings_generator::create_query_embedding(&keywords)?;
-    if args.hnsw {
-        search_using_hnsw(&query, &loaded_indexed_functions, top_k_results)?;
+    let search_results = if args.hnsw {
+        search_using_hnsw(&query, &loaded_indexed_functions, top_k_results)?
     } else {
-        search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?;
-    }
+        search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?
+    };
+
+    print_results(&search_results);
+
     Ok(())
 }
 
-pub fn search_using_hnsw(
+pub fn search_using_hnsw<'a>(
     query: &[f32],
-    loaded_indexed_functions: &[IndexedFunction],
+    loaded_indexed_functions: &'a [IndexedFunction],
     top_k_results: usize,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<(&'a IndexedFunction, f32)>> {
     // Read hnsw.bin, deserialize, convert each persisted node to runtime node
     // Assign Node.id from node's vector position
     // Copy graph config into runtime HnswIndex
@@ -71,7 +74,9 @@ pub fn search_using_hnsw(
         .map(|record| (record.record_id, record))
         .collect();
     // These are record_ids from the JSON not the internal HNSW index
+    // No need to truncate results to top_k_results because index.search() does it already
     let result_ids = index.search(query, top_k_results);
+    let mut result_vec: Vec<(&IndexedFunction, f32)> = Vec::new();
     for record_id in result_ids {
         let indexed_function = match records_by_id.get(&record_id) {
             Some(value) => value,
@@ -80,26 +85,21 @@ pub fn search_using_hnsw(
                 continue;
             }
         };
+
         let score = cosine_similarity(query, &indexed_function.embedding);
 
-        println!("{:.3} {}: ", score, indexed_function.path);
-
-        let extension = Path::new(&indexed_function.path)
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
-
-        print!("\x1b[32m{}:\x1b[0m ", indexed_function.line_number);
-        cli_output::print_highlighted(&indexed_function.header, extension);
-        println!("\n");
+        result_vec.push((indexed_function, score));
     }
-    Ok(())
+    Ok(result_vec)
 }
-pub fn search_using_brute_force(
+
+// TODO: Extract exact search to return top-k record IDs,
+// then compare with HNSW results to calculate recall@k.
+pub fn search_using_brute_force<'a>(
     query: &[f32],
-    loaded_indexed_functions: &[IndexedFunction],
+    loaded_indexed_functions: &'a [IndexedFunction],
     top_k_results: usize,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<(&'a IndexedFunction, f32)>> {
     let mut result: Vec<(&index::IndexedFunction, f32)> = loaded_indexed_functions
         .iter()
         .map(|indexed_function| {
@@ -109,8 +109,13 @@ pub fn search_using_brute_force(
         })
         .collect();
     result.sort_by(|a, b| b.1.total_cmp(&a.1));
+    result.truncate(top_k_results);
 
-    for (indexed_function, score) in result.iter().take(top_k_results) {
+    Ok(result)
+}
+
+pub fn print_results(result: &Vec<(&IndexedFunction, f32)>) {
+    for (indexed_function, score) in result.iter() {
         println!("{:.3} {}: ", score, indexed_function.path);
         let extension = Path::new(&indexed_function.path)
             .extension()
@@ -121,5 +126,4 @@ pub fn search_using_brute_force(
         cli_output::print_highlighted(&indexed_function.header, extension);
         println!("\n");
     }
-    Ok(())
 }
