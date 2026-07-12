@@ -27,11 +27,6 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
             let brute_force_elapsed = brute_force_start.elapsed();
 
             let brute_force_milliseconds = brute_force_elapsed.as_secs_f64() * 1000.0;
-            println!(
-                "Brute force time: {}, run: {}",
-                brute_force_milliseconds,
-                run + 1
-            );
             brute_force_timings.push(brute_force_milliseconds);
 
             let hnsw_start = Instant::now();
@@ -44,7 +39,6 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
             let hnsw_elapsed = hnsw_start.elapsed();
 
             let hnsw_milliseconds = hnsw_elapsed.as_secs_f64() * 1000.0;
-            println!("HNSW time: {}, run: {}", hnsw_milliseconds, run + 1);
             hnsw_timings.push(hnsw_milliseconds);
             if run == 0 {
                 let recall_score = recall(&brute_force_result, &hnsw_result);
@@ -53,7 +47,14 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
         }
     }
     let average_recall_score = total_recall_score / query_count;
+
+    // TODO: Use match instead of unwrap
+    let brute_median = median(&mut brute_force_timings).unwrap();
+    let hnsw_median = median(&mut hnsw_timings).unwrap();
     println!("Average recall: {}", average_recall_score);
+    println!("HNSW median time: {}", hnsw_median);
+    println!("Brute force median time: {}", brute_median);
+
     Ok(())
 }
 
@@ -87,4 +88,18 @@ pub fn recall(
 
     // Dividing by brute_force_results.len() and not top_k flag because we may have less than top_k
     overlap as f32 / brute_force_results.len() as f32
+}
+
+fn median(timings: &mut [f64]) -> Option<f64> {
+    if timings.is_empty() {
+        return None;
+    }
+
+    timings.sort_by(f64::total_cmp);
+    let middle = timings.len() / 2;
+    if timings.len().is_multiple_of(2) {
+        Some((timings[middle - 1] + timings[middle]) / 2.0)
+    } else {
+        Some(timings[middle])
+    }
 }
