@@ -26,7 +26,7 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let query = embeddings_generator::create_query_embedding(&keywords)?;
     let search_results = if args.hnsw {
         let index = load_runtime_index()?;
-        search_using_hnsw(index, &query, &loaded_indexed_functions, top_k_results)?
+        search_using_hnsw(&index, &query, &loaded_indexed_functions, top_k_results)?
     } else {
         search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?
     };
@@ -68,7 +68,7 @@ pub fn load_runtime_index() -> anyhow::Result<hnsw::HnswIndex> {
     Ok(index)
 }
 pub fn search_using_hnsw<'a>(
-    index: hnsw::HnswIndex,
+    index: &hnsw::HnswIndex,
     query: &[f32],
     loaded_indexed_functions: &'a [IndexedFunction],
     top_k_results: usize,
