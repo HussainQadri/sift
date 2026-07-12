@@ -118,7 +118,7 @@ pub fn search_using_brute_force<'a>(
     Ok(result)
 }
 
-pub fn print_results(result: &Vec<(&IndexedFunction, f32)>) {
+pub fn print_results(result: &[(&IndexedFunction, f32)]) {
     for (indexed_function, score) in result.iter() {
         println!("{:.3} {}: ", score, indexed_function.path);
         let extension = Path::new(&indexed_function.path)
