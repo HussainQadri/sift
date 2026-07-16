@@ -150,7 +150,8 @@ fn insert_node(index: &mut HnswIndex, mut node_to_insert: Node) {
 }
 
 fn prune(index: &mut HnswIndex, node_to_prune_id: usize, layer: usize) {
-    if index.nodes[node_to_prune_id].neighbours[layer].len() <= index.m {
+    let max_connections = if layer == 0 { 2 * index.m } else { index.m };
+    if index.nodes[node_to_prune_id].neighbours[layer].len() <= max_connections {
         return;
     }
     let node_to_prune = index.nodes[node_to_prune_id].clone();
@@ -170,7 +171,8 @@ fn prune(index: &mut HnswIndex, node_to_prune_id: usize, layer: usize) {
 
     index.nodes[node_to_prune_id].neighbours[layer] = scored
         .iter()
-        .take(index.m) // Take only m values, remove the rest (prune them)
+        // Take only m values, remove the rest. This would be 2*m values if we are on layer 0
+        .take(max_connections)
         .map(|(id, _score)| *id)
         .collect();
 }
@@ -482,10 +484,10 @@ mod tests {
     }
 
     #[test]
-    fn prune_keeps_only_the_m_most_similar_neighbours() {
+    fn prune_keeps_only_the_m_most_similar_neighbours_above_layer_0() {
         let mut index = HnswIndex {
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![vec![1, 2, 3]]),
+                node(0, vec![1.0, 0.0], vec![vec![], vec![1, 2, 3]]),
                 node(1, vec![1.0, 0.0], vec![vec![0]]),
                 node(2, vec![0.0, 1.0], vec![vec![0]]),
                 node(3, vec![0.8, 0.2], vec![vec![0]]),
@@ -496,9 +498,9 @@ mod tests {
             ef: 3,
         };
 
-        super::prune(&mut index, 0, 0);
+        super::prune(&mut index, 0, 1);
 
-        assert_eq!(index.nodes[0].neighbours[0], vec![1, 3]);
+        assert_eq!(index.nodes[0].neighbours[1], vec![1, 3]);
         assert!(index.nodes[2].neighbours[0].contains(&0));
     }
 
@@ -510,11 +512,14 @@ mod tests {
             insert(&mut index, 0, vec![1.0, i as f32 / 100.0]);
         }
 
-        assert!(
-            index
-                .nodes
+        assert!(index.nodes.iter().all(|node| {
+            node.neighbours
                 .iter()
-                .all(|node| node.neighbours[0].len() <= index.m)
-        );
+                .enumerate()
+                .all(|(layer, neighbours)| {
+                    let max_connections = if layer == 0 { index.m * 2 } else { index.m };
+                    neighbours.len() <= max_connections
+                })
+        }))
     }
 }
