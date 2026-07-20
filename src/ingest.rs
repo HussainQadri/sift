@@ -5,6 +5,7 @@ use crate::language_specs;
 use crate::treesitter_parse;
 use fastembed::TextEmbedding;
 use ignore::Walk;
+use rayon::prelude::*;
 use std::fs;
 
 const EMBEDDING_BATCH_SIZE: usize = 64;
@@ -25,37 +26,48 @@ pub fn ingest_directory(
     path: &std::path::PathBuf,
 ) -> anyhow::Result<IngestOutput> {
     let mut all_indexed_functions = Vec::new();
-    let mut pending_functions = Vec::new();
     let mut hnsw_index = hnsw::HnswIndex::new(32, 256);
 
-    for result in Walk::new(path) {
-        let entry = match result {
-            Ok(entry) => entry,
-            Err(err) => {
-                eprintln!("Invalid directory entry: {err}");
-                continue;
+    // Read files in parallel and return a Vec of Vecs containing pending functions
+    let pending_by_file: Vec<Vec<PendingFunction>> = Walk::new(path)
+        .par_bridge() // Convert iterator from Walk into a parallel iterator
+        .map(|result| -> anyhow::Result<Vec<PendingFunction>> {
+            let entry = match result {
+                Ok(entry) => entry,
+                Err(err) => {
+                    eprintln!("Invalid directory entry: {err}");
+                    return Ok(Vec::new());
+                }
+            };
+            let file_path = entry.path();
+            let spec = match language_specs::spec_for_file(file_path) {
+                Ok(spec) => spec,
+                Err(_) => return Ok(Vec::new()),
+            };
+            let source_code = fs::read_to_string(file_path)?;
+            let tree = treesitter_parse::generate_tree_from_source(&spec, &source_code);
+            let functions =
+                treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
+
+            // Create an empty vector for a file, go through the functions and push them into this
+            // vector. We cannot create a vector for storing PendingFunction outside this map
+            // because if multiple threads try to push PendingFunction structs to that vector that
+            // could cause corruption. After this map work is done, we will flatten this vec
+            let mut pending_functions_for_file = Vec::new();
+            for function in functions {
+                pending_functions_for_file.push(PendingFunction {
+                    source: function.source,
+                    header: function.header,
+                    line_number: function.line_number,
+                    path: file_path.display().to_string(),
+                });
             }
-        };
-        let file_path = entry.path();
+            Ok(pending_functions_for_file)
+        })
+        .collect::<anyhow::Result<Vec<Vec<PendingFunction>>>>()?;
 
-        let spec = match language_specs::spec_for_file(file_path) {
-            Ok(spec) => spec,
-            Err(_) => continue,
-        };
-
-        let source_code = fs::read_to_string(file_path)?;
-        let tree = treesitter_parse::generate_tree_from_source(&spec, &source_code);
-        let functions = treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
-
-        for function in functions {
-            pending_functions.push(PendingFunction {
-                source: function.source,
-                header: function.header,
-                line_number: function.line_number,
-                path: file_path.display().to_string(),
-            });
-        }
-    }
+    // Take this Vec<Vec<PendingFunction>> and convert into just Vec<PendingFunction>
+    let mut pending_functions = pending_by_file.into_iter().flatten().collect();
 
     embed_pending_functions(
         model,

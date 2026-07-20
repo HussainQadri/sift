@@ -2565,6 +2565,7 @@ dependencies = [
  "ignore",
  "postcard",
  "rand 0.10.1",
+ "rayon",
  "serde",
  "serde_json",
  "syntect",
