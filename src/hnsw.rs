@@ -117,11 +117,8 @@ fn insert_node(index: &mut HnswIndex, mut node_to_insert: Node) {
                 index.ef,
                 node_layer,
             );
-            let best_m_neighbours: Vec<usize> = nearby_neighbours
-                .into_iter()
-                .take(index.m)
-                .map(|(id, _score)| id)
-                .collect();
+            let best_m_neighbours: Vec<usize> =
+                maintain_diverse_neighbours(index, &nearby_neighbours, index.m);
             for id in &best_m_neighbours {
                 node_to_insert.neighbours[node_layer].push(*id);
                 index.nodes[*id].neighbours[node_layer].push(node_to_insert.id);
@@ -149,6 +146,40 @@ fn insert_node(index: &mut HnswIndex, mut node_to_insert: Node) {
     }
 }
 
+/// Selects at most `limit` diverse neighbours.
+///
+/// `candidates` must be sorted by descending similarity to the query. Each
+/// tuple contains a node ID and its cosine similarity to that query.
+fn maintain_diverse_neighbours(
+    index: &HnswIndex,
+    candidates: &[(usize, f32)],
+    limit: usize,
+) -> Vec<usize> {
+    let mut selected: Vec<usize> = Vec::with_capacity(limit);
+    for &(candidate_id, candidate_query_similarity) in candidates {
+        // If we already have M neighbours for the layer, just abort.
+        if selected.len() >= limit {
+            break;
+        }
+        let candidate_embedding = &index.nodes[candidate_id].embedding;
+
+        // The idea is that we need to compare our query with the candidate, which is just the
+        // score, this score should be higher than all the cosine similarty scores between the
+        // candidate and what is already in the selected vec
+        let should_add = selected.iter().all(|&selected_id| {
+            let candidate_selected_similarity = similarity::cosine_similarity(
+                candidate_embedding,
+                &index.nodes[selected_id].embedding,
+            );
+            candidate_query_similarity > candidate_selected_similarity
+        });
+        if should_add {
+            selected.push(candidate_id);
+        }
+    }
+    selected
+}
+
 fn prune(index: &mut HnswIndex, node_to_prune_id: usize, layer: usize) {
     let max_connections = if layer == 0 { 2 * index.m } else { index.m };
     if index.nodes[node_to_prune_id].neighbours[layer].len() <= max_connections {
@@ -169,14 +200,10 @@ fn prune(index: &mut HnswIndex, node_to_prune_id: usize, layer: usize) {
         .collect();
     scored.sort_by(|a, b| b.1.total_cmp(&a.1));
 
-    index.nodes[node_to_prune_id].neighbours[layer] = scored
-        .iter()
-        // Take only m values, remove the rest. This would be 2*m values if we are on layer 0
-        .take(max_connections)
-        .map(|(id, _score)| *id)
-        .collect();
+    // maintain_diverse_neighbours() expects the candidates list to be sorted.
+    let selected = maintain_diverse_neighbours(index, &scored, max_connections);
+    index.nodes[node_to_prune_id].neighbours[layer] = selected;
 }
-
 fn search_greedy(
     index: &HnswIndex,
     query_vector: &[f32],
@@ -315,9 +342,10 @@ pub fn calculate_most_similiar_neighbours(
 #[cfg(test)]
 mod tests {
     use super::{
-        HnswIndex, Node, calculate_most_similiar_neighbours, insert, insert_node, search,
-        search_greedy, search_layer,
+        HnswIndex, Node, calculate_most_similiar_neighbours, insert, insert_node,
+        maintain_diverse_neighbours, search, search_greedy, search_layer,
     };
+    use crate::similarity;
 
     fn empty_index() -> HnswIndex {
         HnswIndex {
@@ -361,26 +389,6 @@ mod tests {
         assert_eq!(index.nodes.len(), 2);
         assert_eq!(index.nodes[0].neighbours[0], vec![1]);
         assert_eq!(index.nodes[1].neighbours[0], vec![0]);
-    }
-
-    #[test]
-    fn insert_uses_search_layer_to_link_to_closest_reachable_nodes() {
-        let mut index = HnswIndex {
-            nodes: vec![
-                node(0, vec![1.0, 0.0], vec![vec![1]]),
-                node(1, vec![0.0, 1.0], vec![vec![0]]),
-            ],
-            entry_point: Some(0),
-            m: 2,
-            ef: 2,
-            max_layer: 0,
-        };
-
-        insert(&mut index, 0, vec![0.0, 0.9]);
-
-        assert_eq!(index.nodes[2].neighbours[0], vec![1, 0]);
-        assert_eq!(index.nodes[1].neighbours[0], vec![0, 2]);
-        assert_eq!(index.nodes[0].neighbours[0], vec![1, 2]);
     }
 
     #[test]
@@ -484,24 +492,35 @@ mod tests {
     }
 
     #[test]
-    fn prune_keeps_only_the_m_most_similar_neighbours_above_layer_0() {
-        let mut index = HnswIndex {
+    fn maintain_diverse_neighbours_rejects_redundancy_and_honours_limit() {
+        let index = HnswIndex {
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![vec![], vec![1, 2, 3]]),
-                node(1, vec![1.0, 0.0], vec![vec![0]]),
-                node(2, vec![0.0, 1.0], vec![vec![0]]),
-                node(3, vec![0.8, 0.2], vec![vec![0]]),
+                node(0, vec![0.9848077, 0.1736482], vec![Vec::new()]),
+                node(1, vec![0.9396926, 0.34202015], vec![Vec::new()]),
+                node(2, vec![0.5, -0.8660254], vec![Vec::new()]),
             ],
-            max_layer: 3,
+            max_layer: 0,
             entry_point: Some(0),
             m: 2,
             ef: 3,
         };
+        let query = [1.0, 0.0];
+        let candidates: Vec<(usize, f32)> = index
+            .nodes
+            .iter()
+            .map(|candidate| {
+                (
+                    candidate.id,
+                    similarity::cosine_similarity(&candidate.embedding, &query),
+                )
+            })
+            .collect();
 
-        super::prune(&mut index, 0, 1);
-
-        assert_eq!(index.nodes[0].neighbours[1], vec![1, 3]);
-        assert!(index.nodes[2].neighbours[0].contains(&0));
+        assert_eq!(
+            maintain_diverse_neighbours(&index, &candidates, 2),
+            vec![0, 2]
+        );
+        assert_eq!(maintain_diverse_neighbours(&index, &candidates, 1), vec![0]);
     }
 
     #[test]
