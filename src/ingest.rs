@@ -42,9 +42,9 @@ pub fn ingest_directory(
                 Err(_) => return Ok(Vec::new()),
             };
             let source_code = fs::read_to_string(file_path)?;
-            let tree = treesitter_parse::generate_tree_from_source(&spec, &source_code);
+            let tree = treesitter_parse::generate_tree_from_source(&spec, &source_code)?;
             let functions =
-                treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec);
+                treesitter_parse::extract_functions(tree.root_node(), &source_code, &spec)?;
 
             // Create an empty vector for a file, go through the functions and push them into this
             // vector. We cannot create a vector for storing PendingFunction outside this map
