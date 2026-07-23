@@ -32,13 +32,10 @@ pub fn ingest_directory(
     let pending_by_file: Vec<Vec<PendingFunction>> = Walk::new(path)
         .par_bridge() // Convert iterator from Walk into a parallel iterator
         .map(|result| -> anyhow::Result<Vec<PendingFunction>> {
-            let entry = match result {
-                Ok(entry) => entry,
-                Err(err) => {
-                    eprintln!("Invalid directory entry: {err}");
-                    return Ok(Vec::new());
-                }
-            };
+            // If we run into any errors we stop ingesting to prevent a malformed index from being
+            // created
+            let entry = result
+                .map_err(|error| anyhow::anyhow!("failed to walk {}: {error}", path.display()))?;
             let file_path = entry.path();
             let spec = match language_specs::spec_for_file(file_path) {
                 Ok(spec) => spec,

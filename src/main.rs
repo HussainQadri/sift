@@ -24,6 +24,13 @@ fn main() -> anyhow::Result<()> {
             };
 
             let ingest_output = ingest::ingest_directory(&mut model, &target_path)?;
+            if ingest_output.indexed_functions.is_empty() {
+                anyhow::bail!(
+                    "no indexable functions were found under {}",
+                    target_path.display()
+                );
+            }
+
             index::save_index(&ingest_output.indexed_functions)?;
             let hnsw_index = ingest_output.hnsw_index;
             index::save_hnsw_index(&hnsw_index)?;
