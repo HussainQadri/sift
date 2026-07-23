@@ -16,13 +16,19 @@ fn main() -> anyhow::Result<()> {
     let args: cli::Cli = cli::Cli::parse();
     match args.commands {
         Some(Commands::Ingest { path }) => {
-            let mut model = embeddings_generator::create_embedding_model()?;
-
+            // Check if the path provided was empty or not
             let target_path = match path {
                 Some(p) => p,
                 None => std::path::PathBuf::from("."),
             };
 
+            // Now check if target_path is valid
+            let exists = target_path.try_exists()?;
+            if !exists {
+                anyhow::bail!("path {} does not exist", target_path.display());
+            }
+
+            let mut model = embeddings_generator::create_embedding_model()?;
             let ingest_output = ingest::ingest_directory(&mut model, &target_path)?;
             if ingest_output.indexed_functions.is_empty() {
                 anyhow::bail!(
