@@ -2,6 +2,9 @@ use std::path::PathBuf;
 
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 
+// A global limit as to how much of a function we will read
+const MAX_TOKEN_LENGTH: usize = 256;
+
 pub fn create_function_embedding(
     model: &mut TextEmbedding,
     texts: Vec<&String>,
@@ -24,6 +27,7 @@ fn model_cache_dir() -> PathBuf {
 }
 pub fn create_embedding_model() -> anyhow::Result<TextEmbedding> {
     let options = InitOptions::new(EmbeddingModel::SnowflakeArcticEmbedXSQ)
+        .with_max_length(MAX_TOKEN_LENGTH)
         .with_cache_dir(model_cache_dir());
 
     TextEmbedding::try_new(options)
