@@ -2,8 +2,9 @@ use std::path::PathBuf;
 
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 
-// A global limit as to how much of a function we will read
+// A global limit as to how much of a function we will read and the query
 const MAX_TOKEN_LENGTH: usize = 256;
+const SNOWFLAKE_PREFIX: &str = "Represent this sentence for searching relevant passages: ";
 
 pub fn create_function_embedding(
     model: &mut TextEmbedding,
@@ -15,7 +16,10 @@ pub fn create_function_embedding(
 
 pub fn create_query_embedding(keywords: &String) -> anyhow::Result<Vec<f32>> {
     let mut model = create_embedding_model()?;
-    let mut keyword_embedding = model.embed(vec![keywords], None)?;
+    // Prepending the SNOWFLAKE_PREFIX increases retrieval quality, it is literally a sentence
+    // telling the model what the input is - like a system prompt.
+    let query = format!("{SNOWFLAKE_PREFIX}{keywords}");
+    let mut keyword_embedding = model.embed(vec![query], None)?;
     let query_embedding = keyword_embedding.pop().unwrap();
     Ok(query_embedding)
 }
