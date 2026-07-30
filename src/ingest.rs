@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::time::Instant;
 
-const EMBEDDING_BATCH_SIZE: usize = 64;
+const EMBEDDING_BATCH_SIZE: usize = 1;
 
 struct PendingFunction {
     path: String,
