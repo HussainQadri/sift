@@ -23,7 +23,7 @@ fn model_cache_dir() -> PathBuf {
         .join("fastembed")
 }
 pub fn create_embedding_model() -> anyhow::Result<TextEmbedding> {
-    let options = InitOptions::new(EmbeddingModel::JinaEmbeddingsV2BaseCode)
+    let options = InitOptions::new(EmbeddingModel::SnowflakeArcticEmbedXSQ)
         .with_cache_dir(model_cache_dir());
 
     TextEmbedding::try_new(options)
