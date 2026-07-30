@@ -6,6 +6,7 @@ use crate::treesitter_parse;
 use fastembed::TextEmbedding;
 use ignore::Walk;
 use rayon::prelude::*;
+use std::collections::HashSet;
 use std::fs;
 
 const EMBEDDING_BATCH_SIZE: usize = 64;
@@ -64,7 +65,23 @@ pub fn ingest_directory(
         .collect::<anyhow::Result<Vec<Vec<PendingFunction>>>>()?;
 
     // Take this Vec<Vec<PendingFunction>> and convert into just Vec<PendingFunction>
-    let mut pending_functions = pending_by_file.into_iter().flatten().collect();
+    let mut pending_functions: Vec<PendingFunction> =
+        pending_by_file.into_iter().flatten().collect();
+
+    let function_count = pending_functions.len();
+
+    let unique_body_count: usize = pending_functions
+        .iter()
+        .map(|function| function.source.as_str())
+        .collect::<HashSet<_>>()
+        .len();
+
+    let repeated_body_count = function_count - unique_body_count;
+
+    eprintln!(
+        "Discovered {function_count} functions: {unique_body_count} unique bodies, \
+       {repeated_body_count} repeated bodies"
+    );
 
     embed_pending_functions(
         model,
