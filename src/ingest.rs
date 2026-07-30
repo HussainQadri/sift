@@ -8,6 +8,7 @@ use ignore::Walk;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
+use std::time::Instant;
 
 const EMBEDDING_BATCH_SIZE: usize = 64;
 
@@ -30,6 +31,7 @@ pub fn ingest_directory(
     let mut hnsw_index = hnsw::HnswIndex::new(32, 256);
 
     // Read files in parallel and return a Vec of Vecs containing pending functions
+    let discovery_started = Instant::now();
     let pending_by_file: Vec<Vec<PendingFunction>> = Walk::new(path)
         .par_bridge() // Convert iterator from Walk into a parallel iterator
         .map(|result| -> anyhow::Result<Vec<PendingFunction>> {
@@ -68,6 +70,7 @@ pub fn ingest_directory(
     let mut pending_functions: Vec<PendingFunction> =
         pending_by_file.into_iter().flatten().collect();
 
+    let discovery_time_elapsed = discovery_started.elapsed();
     let function_count = pending_functions.len();
 
     let unique_body_count: usize = pending_functions
@@ -80,7 +83,8 @@ pub fn ingest_directory(
 
     eprintln!(
         "Discovered {function_count} functions: {unique_body_count} unique bodies, \
-       {repeated_body_count} repeated bodies"
+       {repeated_body_count} repeated bodies in {:.2}s",
+        discovery_time_elapsed.as_secs_f64()
     );
 
     embed_pending_functions(
