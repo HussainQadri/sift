@@ -1,6 +1,7 @@
 use crate::embeddings_generator;
 use crate::hnsw;
 use crate::index;
+use crate::index::IndexedFunction;
 use crate::language_specs;
 use crate::treesitter_parse;
 use fastembed::TextEmbedding;
@@ -17,6 +18,11 @@ struct PendingFunction {
     header: String,
     source: String,
     line_number: usize,
+}
+
+struct EmbeddedFunction {
+    pending_function: PendingFunction,
+    embedding: Vec<f32>,
 }
 
 pub struct IngestOutput {
@@ -70,6 +76,8 @@ pub fn ingest_directory(
     let mut pending_functions: Vec<PendingFunction> =
         pending_by_file.into_iter().flatten().collect();
 
+    // TODO: This timing code doesn't belong in this function; after we collect into
+    // Vec<Vec<PendingFunction>> the function should have ended - refactor.
     let discovery_time_elapsed = discovery_started.elapsed();
     let function_count = pending_functions.len();
 
@@ -87,12 +95,13 @@ pub fn ingest_directory(
         discovery_time_elapsed.as_secs_f64()
     );
 
-    embed_pending_functions(
-        model,
-        &mut pending_functions,
-        &mut all_indexed_functions,
+    // This function starts the batching process and returns the final list of embeddings
+    let embedded_functions = embed_pending_functions(model, &mut pending_functions)?;
+    index_embedded_functions(
         &mut hnsw_index,
-    )?;
+        embedded_functions,
+        &mut all_indexed_functions,
+    );
     let mut persisted_nodes = Vec::new();
     for node in hnsw_index.nodes {
         persisted_nodes.push(index::PersistedHnswNode {
@@ -118,12 +127,12 @@ pub fn ingest_directory(
 fn embed_pending_functions(
     model: &mut TextEmbedding,
     pending_function_list: &mut Vec<PendingFunction>,
-    all_indexed_functions: &mut Vec<index::IndexedFunction>,
-    hnsw_index: &mut hnsw::HnswIndex,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<EmbeddedFunction>> {
     if pending_function_list.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
+
+    let mut all_embedded_functions = Vec::with_capacity(pending_function_list.len());
 
     pending_function_list.sort_by_key(|pending_function| pending_function.source.len());
 
@@ -132,21 +141,21 @@ fn embed_pending_functions(
         batch.push(pending_function);
 
         if batch.len() >= EMBEDDING_BATCH_SIZE {
-            embed_pending_batch(model, &mut batch, all_indexed_functions, hnsw_index)?;
+            let embedded_batch = embed_pending_batch(model, &mut batch)?;
+            all_embedded_functions.extend(embedded_batch);
         }
     }
 
-    embed_pending_batch(model, &mut batch, all_indexed_functions, hnsw_index)
+    all_embedded_functions.extend(embed_pending_batch(model, &mut batch)?);
+    Ok(all_embedded_functions)
 }
 
 fn embed_pending_batch(
     model: &mut TextEmbedding,
     batch: &mut Vec<PendingFunction>,
-    all_indexed_functions: &mut Vec<index::IndexedFunction>,
-    hnsw_index: &mut hnsw::HnswIndex,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<EmbeddedFunction>> {
     if batch.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     let texts = batch
@@ -154,24 +163,38 @@ fn embed_pending_batch(
         .map(|pending_function| &pending_function.source)
         .collect();
     let embeddings = embeddings_generator::create_function_embedding(model, texts)?;
-    let start_id = all_indexed_functions.len();
-
-    for (offset, (pending_function, embedding)) in batch.drain(..).zip(embeddings).enumerate() {
-        let indexed_function = index::IndexedFunction {
-            path: pending_function.path,
-            header: pending_function.header,
-            source: pending_function.source,
-            line_number: pending_function.line_number,
+    let embedded_functions = batch
+        .drain(..)
+        .zip(embeddings)
+        .map(|(pending_function, embedding)| EmbeddedFunction {
+            pending_function,
             embedding,
-            record_id: start_id + offset,
+        })
+        .collect();
+
+    Ok(embedded_functions)
+}
+
+fn index_embedded_functions(
+    index: &mut hnsw::HnswIndex,
+    embedded_functions: Vec<EmbeddedFunction>,
+    all_indexed_functions: &mut Vec<IndexedFunction>,
+) {
+    for embedded_function in embedded_functions {
+        // The record_id, which is different to the internal HNSW id is just the position of the
+        // function in the array.
+        let record_id = all_indexed_functions.len();
+        let pending = embedded_function.pending_function;
+        let indexed_function = IndexedFunction {
+            path: pending.path,
+            header: pending.header,
+            source: pending.source,
+            line_number: pending.line_number,
+            embedding: embedded_function.embedding,
+            record_id,
         };
 
-        hnsw_index.insert(
-            indexed_function.record_id,
-            indexed_function.embedding.clone(),
-        );
+        index.insert(record_id, indexed_function.embedding.clone());
         all_indexed_functions.push(indexed_function);
     }
-
-    Ok(())
 }
