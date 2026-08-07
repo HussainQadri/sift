@@ -24,11 +24,11 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     }
 
     let query = embeddings_generator::create_query_embedding(&keywords)?;
-    let search_results = if args.hnsw {
+    let search_results = if args.exact {
+        search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?
+    } else {
         let index = load_runtime_index()?;
         search_using_hnsw(&index, &query, &loaded_indexed_functions, top_k_results)?
-    } else {
-        search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?
     };
 
     print_results(&search_results);
