@@ -30,9 +30,25 @@ fn model_cache_dir() -> PathBuf {
         .join("fastembed")
 }
 pub fn create_embedding_model() -> anyhow::Result<TextEmbedding> {
+    build_embedding_model(None)
+}
+
+fn build_embedding_model(intra_threads: Option<usize>) -> anyhow::Result<TextEmbedding> {
     let options = InitOptions::new(EmbeddingModel::SnowflakeArcticEmbedXSQ)
         .with_max_length(MAX_TOKEN_LENGTH)
         .with_cache_dir(model_cache_dir());
 
+    let options = match intra_threads {
+        Some(threads) => options.with_intra_threads(threads),
+        None => options,
+    };
+
     TextEmbedding::try_new(options)
+}
+
+pub fn create_embedding_model_with_intra_threads(
+    intra_threads: usize,
+) -> anyhow::Result<TextEmbedding> {
+    anyhow::ensure!(intra_threads > 0, "intra_threads must be greater than 0");
+    build_embedding_model(Some(intra_threads))
 }
