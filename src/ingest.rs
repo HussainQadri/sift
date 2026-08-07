@@ -12,6 +12,8 @@ use std::fs;
 use std::time::Instant;
 
 const EMBEDDING_BATCH_SIZE: usize = 1;
+const EMBEDDING_WORKER_COUNT: usize = 8;
+const EMBEDDING_INTRA_THREADS: usize = 2;
 
 struct PendingFunction {
     path: String,
@@ -29,10 +31,7 @@ pub struct IngestOutput {
     pub indexed_functions: Vec<index::IndexedFunction>,
     pub hnsw_index: index::PersistedHnswIndex,
 }
-pub fn ingest_directory(
-    model: &mut TextEmbedding,
-    path: &std::path::PathBuf,
-) -> anyhow::Result<IngestOutput> {
+pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutput> {
     let mut all_indexed_functions = Vec::new();
     let mut hnsw_index = hnsw::HnswIndex::new(32, 256);
 
@@ -95,13 +94,19 @@ pub fn ingest_directory(
         discovery_time_elapsed.as_secs_f64()
     );
 
-    // This function starts the batching process and returns the final list of embeddings
-    let embedded_functions = embed_pending_functions(model, &mut pending_functions)?;
+    let mut models = embeddings_generator::create_embedding_models(
+        EMBEDDING_WORKER_COUNT,
+        EMBEDDING_INTRA_THREADS,
+    )?;
+
+    let embedded_functions = embed_pending_functions_parallel(&mut models, &mut pending_functions)?;
+
     index_embedded_functions(
         &mut hnsw_index,
         embedded_functions,
         &mut all_indexed_functions,
     );
+
     let mut persisted_nodes = Vec::new();
     for node in hnsw_index.nodes {
         persisted_nodes.push(index::PersistedHnswNode {
@@ -122,6 +127,47 @@ pub fn ingest_directory(
         indexed_functions: all_indexed_functions,
         hnsw_index: persisted,
     })
+}
+
+fn embed_pending_functions_parallel(
+    models: &mut [TextEmbedding],
+    pending_functions: &mut Vec<PendingFunction>,
+) -> anyhow::Result<Vec<EmbeddedFunction>> {
+    if pending_functions.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    anyhow::ensure!(!models.is_empty(), "no models were created");
+
+    // Sort first by source length, if source lengths happen to be equal (e.g for duplicate bodies), we
+    // introduce tie breakers such as the path and the line numbers. This is to overcome the
+    // non-deterministic behaviour of parallel file traversal
+    pending_functions.sort_by(|a, b| {
+        b.source
+            .len()
+            .cmp(&a.source.len())
+            .then_with(|| a.path.cmp(&b.path))
+            .then_with(|| a.line_number.cmp(&b.line_number))
+    });
+
+    let mut worker_queues: Vec<Vec<PendingFunction>> = Vec::with_capacity(models.len());
+
+    for _ in 0..models.len() {
+        worker_queues.push(Vec::new());
+    }
+
+    for (index, pending_function) in pending_functions.drain(..).enumerate() {
+        let worker_index = index % models.len();
+        worker_queues[worker_index].push(pending_function);
+    }
+
+    let embedded_for_worker = models
+        .par_iter_mut()
+        .zip(worker_queues.par_iter_mut())
+        .map(|(model, worker_queue)| embed_pending_functions(model, worker_queue))
+        .collect::<anyhow::Result<Vec<Vec<EmbeddedFunction>>>>()?;
+
+    Ok(embedded_for_worker.into_iter().flatten().collect())
 }
 
 fn embed_pending_functions(

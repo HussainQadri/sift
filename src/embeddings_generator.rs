@@ -52,3 +52,18 @@ pub fn create_embedding_model_with_intra_threads(
     anyhow::ensure!(intra_threads > 0, "intra_threads must be greater than 0");
     build_embedding_model(Some(intra_threads))
 }
+
+pub fn create_embedding_models(
+    worker_count: usize,
+    intra_threads: usize,
+) -> anyhow::Result<Vec<TextEmbedding>> {
+    anyhow::ensure!(worker_count > 0, "worker_count must be greater than 0");
+
+    let mut workers = Vec::with_capacity(worker_count);
+
+    for _ in 0..worker_count {
+        workers.push(create_embedding_model_with_intra_threads(intra_threads)?);
+    }
+
+    Ok(workers)
+}

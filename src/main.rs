@@ -28,8 +28,7 @@ fn main() -> anyhow::Result<()> {
                 anyhow::bail!("path {} does not exist", target_path.display());
             }
 
-            let mut model = embeddings_generator::create_embedding_model()?;
-            let ingest_output = ingest::ingest_directory(&mut model, &target_path)?;
+            let ingest_output = ingest::ingest_directory(&target_path)?;
             if ingest_output.indexed_functions.is_empty() {
                 anyhow::bail!(
                     "no indexable functions were found under {}",
