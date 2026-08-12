@@ -26,6 +26,8 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
         anyhow::bail!("The index is empty, please run `sift ingest` first");
     }
 
+    let model = embeddings_generator::create_embedding_model()?;
+
     // For each query, run that query 'run' times with brute force and hnsw whilst timing both
     // Calculate recall once
     let mut brute_force_timings = Vec::new();
@@ -34,7 +36,7 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
     let mut total_recall_score: f32 = 0.0;
     let query_count = queries_vec.len() as f32;
     for query in queries_vec {
-        let query_embedding = embeddings_generator::create_query_embedding(&query)?;
+        let query_embedding = embeddings_generator::create_query_embedding(&model, &query)?;
         for run in 0..runs {
             // TODO: Clean this up, too much repeated code
             let brute_force_start = Instant::now();

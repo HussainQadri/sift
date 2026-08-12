@@ -4,16 +4,14 @@ use crate::index;
 use crate::index::IndexedFunction;
 use crate::language_specs;
 use crate::treesitter_parse;
-use fastembed::TextEmbedding;
 use ignore::Walk;
+use model2vec_rs::model::StaticModel;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::time::Instant;
 
-const EMBEDDING_BATCH_SIZE: usize = 1;
-const EMBEDDING_WORKER_COUNT: usize = 8;
-const EMBEDDING_INTRA_THREADS: usize = 2;
+const EMBEDDING_BATCH_SIZE: usize = 1024;
 
 struct PendingFunction {
     path: String,
@@ -94,12 +92,8 @@ pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutpu
         discovery_time_elapsed.as_secs_f64()
     );
 
-    let mut models = embeddings_generator::create_embedding_models(
-        EMBEDDING_WORKER_COUNT,
-        EMBEDDING_INTRA_THREADS,
-    )?;
-
-    let embedded_functions = embed_pending_functions_parallel(&mut models, &mut pending_functions)?;
+    let model = embeddings_generator::create_embedding_model()?;
+    let embedded_functions = embed_pending_functions(&model, &mut pending_functions)?;
 
     index_embedded_functions(
         &mut hnsw_index,
@@ -129,49 +123,8 @@ pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutpu
     })
 }
 
-fn embed_pending_functions_parallel(
-    models: &mut [TextEmbedding],
-    pending_functions: &mut Vec<PendingFunction>,
-) -> anyhow::Result<Vec<EmbeddedFunction>> {
-    if pending_functions.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    anyhow::ensure!(!models.is_empty(), "no models were created");
-
-    // Sort first by source length, if source lengths happen to be equal (e.g for duplicate bodies), we
-    // introduce tie breakers such as the path and the line numbers. This is to overcome the
-    // non-deterministic behaviour of parallel file traversal
-    pending_functions.sort_by(|a, b| {
-        b.source
-            .len()
-            .cmp(&a.source.len())
-            .then_with(|| a.path.cmp(&b.path))
-            .then_with(|| a.line_number.cmp(&b.line_number))
-    });
-
-    let mut worker_queues: Vec<Vec<PendingFunction>> = Vec::with_capacity(models.len());
-
-    for _ in 0..models.len() {
-        worker_queues.push(Vec::new());
-    }
-
-    for (index, pending_function) in pending_functions.drain(..).enumerate() {
-        let worker_index = index % models.len();
-        worker_queues[worker_index].push(pending_function);
-    }
-
-    let embedded_for_worker = models
-        .par_iter_mut()
-        .zip(worker_queues.par_iter_mut())
-        .map(|(model, worker_queue)| embed_pending_functions(model, worker_queue))
-        .collect::<anyhow::Result<Vec<Vec<EmbeddedFunction>>>>()?;
-
-    Ok(embedded_for_worker.into_iter().flatten().collect())
-}
-
 fn embed_pending_functions(
-    model: &mut TextEmbedding,
+    model: &StaticModel,
     pending_function_list: &mut Vec<PendingFunction>,
 ) -> anyhow::Result<Vec<EmbeddedFunction>> {
     if pending_function_list.is_empty() {
@@ -180,7 +133,13 @@ fn embed_pending_functions(
 
     let mut all_embedded_functions = Vec::with_capacity(pending_function_list.len());
 
-    pending_function_list.sort_by_key(|pending_function| pending_function.source.len());
+    pending_function_list.sort_by(|a, b| {
+        a.source
+            .len()
+            .cmp(&b.source.len())
+            .then_with(|| a.path.cmp(&b.path))
+            .then_with(|| a.line_number.cmp(&b.line_number))
+    });
 
     let mut batch = Vec::with_capacity(EMBEDDING_BATCH_SIZE);
     for pending_function in pending_function_list.drain(..) {
@@ -197,7 +156,7 @@ fn embed_pending_functions(
 }
 
 fn embed_pending_batch(
-    model: &mut TextEmbedding,
+    model: &StaticModel,
     batch: &mut Vec<PendingFunction>,
 ) -> anyhow::Result<Vec<EmbeddedFunction>> {
     if batch.is_empty() {
