@@ -45,6 +45,11 @@ fn main() -> anyhow::Result<()> {
             benchmark::run_benchmark(&queries, top, runs)?;
         }
 
+        Some(Commands::Evaluate { judgements, top }) => {
+            let average_ndcg_score = benchmark::run_evaluation(&judgements, top)?;
+            println!("Average nDCG@{}: {}", top, average_ndcg_score);
+        }
+
         None => {
             query_search(args)?;
         }

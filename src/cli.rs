@@ -16,6 +16,14 @@ pub enum Commands {
         #[arg(long, default_value_t = 50)]
         runs: usize,
     },
+
+    Evaluate {
+        #[arg(long)]
+        judgements: PathBuf,
+
+        #[arg(long, default_value_t = 10)]
+        top: usize,
+    },
 }
 
 #[derive(Parser)]
