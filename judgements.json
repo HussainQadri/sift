@@ -1,0 +1,132 @@
+[
+  {
+    "query": "compute cosine similarity between two vectors",
+    "relevant": [
+      {
+        "path": "src/similarity.rs",
+        "header": "pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32",
+        "relevance": 3
+      }
+    ]
+  },
+  {
+    "query": "insert a new vector into the hnsw index",
+    "relevant": [
+      {
+        "path": "src/hnsw.rs",
+        "header": "pub fn insert(&mut self, record_id: usize, embedding_vec: Vec<f32>)",
+        "relevance": 3
+      },
+      {
+        "path": "src/hnsw.rs",
+        "header": "pub fn insert(index: &mut HnswIndex, record_id: usize, embedding_vec: Vec<f32>)",
+        "relevance": 2
+      }
+    ]
+  },
+  {
+    "query": "load the saved index from disk",
+    "relevant": [
+      {
+        "path": "src/index.rs",
+        "header": "pub fn load_index() -> anyhow::Result<Vec<IndexedFunction>>",
+        "relevance": 3
+      },
+      {
+        "path": "src/index.rs",
+        "header": "fn load_index_at(index_path: &Path) -> anyhow::Result<Vec<IndexedFunction>>",
+        "relevance": 2
+      },
+      {
+        "path": "src/search.rs",
+        "header": "pub fn load_runtime_index() -> anyhow::Result<hnsw::HnswIndex>",
+        "relevance": 2
+      }
+    ]
+  },
+  {
+    "query": "persist the hnsw graph to disk",
+    "relevant": [
+      {
+        "path": "src/index.rs",
+        "header": "pub fn save_hnsw_index(persisted_hnsw_index: &PersistedHnswIndex) -> anyhow::Result<()>",
+        "relevance": 3
+      },
+      {
+        "path": "src/index.rs",
+        "header": "pub fn save_hnsw_index_at(\n    persisted_hnsw_graph: &PersistedHnswIndex,\n    hnsw_path: &Path,\n) -> anyhow::Result<()>",
+        "relevance": 2
+      }
+    ]
+  },
+  {
+    "query": "embed a natural language query",
+    "relevant": [
+      {
+        "path": "src/embeddings_generator.rs",
+        "header": "pub fn create_query_embedding(model: &StaticModel, keywords: &str) -> anyhow::Result<Vec<f32>>",
+        "relevance": 3
+      },
+      {
+        "path": "src/embeddings_generator.rs",
+        "header": "pub fn create_embedding_model() -> anyhow::Result<StaticModel>",
+        "relevance": 2
+      }
+    ]
+  },
+  {
+    "query": "walk a repository and index its functions",
+    "relevant": [
+      {
+        "path": "src/ingest.rs",
+        "header": "pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutput>",
+        "relevance": 3
+      }
+    ]
+  },
+  {
+    "query": "search the index using the hnsw graph",
+    "relevant": [
+      {
+        "path": "src/search.rs",
+        "header": "pub fn search_using_hnsw<'a>(\n    index: &hnsw::HnswIndex,\n    query: &[f32],\n    loaded_indexed_functions: &'a [IndexedFunction],\n    top_k_results: usize,\n) -> anyhow::Result<Vec<(&'a IndexedFunction, f32)>>",
+        "relevance": 3
+      },
+      {
+        "path": "src/hnsw.rs",
+        "header": "pub fn search(&self, embedding_vec: &[f32], top_k: usize) -> Vec<usize>",
+        "relevance": 2
+      }
+    ]
+  },
+  {
+    "query": "measure discounted cumulative gain",
+    "relevant": [
+      {
+        "path": "src/benchmark.rs",
+        "header": "fn dcg(relevances: &[u8]) -> f64",
+        "relevance": 3
+      },
+      {
+        "path": "src/benchmark.rs",
+        "header": "fn ndcg(actual_relevances: &[u8], judged_relevances: &[u8]) -> f64",
+        "relevance": 2
+      }
+    ]
+  },
+  {
+    "query": "print results with syntax highlighting",
+    "relevant": [
+      {
+        "path": "src/cli_output.rs",
+        "header": "pub fn print_highlighted(code: &str, extension: &str)",
+        "relevance": 3
+      },
+      {
+        "path": "src/search.rs",
+        "header": "pub fn print_results(result: &[(&IndexedFunction, f32)])",
+        "relevance": 2
+      }
+    ]
+  }
+]
