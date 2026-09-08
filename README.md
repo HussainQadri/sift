@@ -124,6 +124,35 @@ indexed path ends with the judgement's path. `--top` defaults to 10. Evaluation
 always uses exhaustive search so the score measures retrieval quality rather
 than HNSW approximation.
 
+## Measured Results
+
+Release-mode measurements from 8 September 2026 on an Intel i7-9700K with a
+cached model. Ingestion times are wall-clock for a complete run. Search times
+are medians across 50 runs per query with `--top 10`.
+
+Ingestion:
+
+| Repository | Functions | Ingest time |
+|---|---:|---:|
+| ripgrep | 2,977 | 1.89 s |
+| rust-analyzer | 23,996 | 24.52 s |
+
+Search benchmark on the ripgrep index, three queries:
+
+```text
+Average recall@10:    1.0
+HNSW median search:   0.617 ms
+Exact median search:  0.777 ms
+```
+
+Evaluation with the included `judgements.json` against Sift's own codebase:
+
+```text
+Average nDCG@3:   0.942
+Average nDCG@5:   0.972
+Average nDCG@10:  0.972
+```
+
 ## Supported Files
 
 - Rust: `.rs`
