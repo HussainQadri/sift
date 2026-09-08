@@ -9,19 +9,22 @@ jump straight to the functions that matter.
   <img src="assets/sift-demo.gif" alt="Sift CLI demo">
 </p>
 
-Sift uses Tree-sitter to extract functions and methods, embeds their full source
-with the quantized Snowflake Arctic Embed XS model, and stores the resulting
-384-dimensional vectors locally. The custom persisted HNSW index provides the
-default search mode; exhaustive cosine search is available when exact results
-are required.
+Sift uses Tree-sitter to extract functions and methods, embeds their source with
+the Potion Code 16M v2 static embedding model (`minishlab/potion-code-16M-v2`),
+and stores the resulting 256-dimensional vectors locally. The custom persisted
+HNSW index provides the default search mode; exhaustive cosine search is
+available when exact results are required.
 
-Embedding inference and indexing run locally. On first use, FastEmbed downloads
-the model into the operating system's cache directory. Ingestion uses
-multiple CPU model sessions concurrently; no GPU is required.
+Embedding inference and indexing run locally. On first use, model2vec downloads
+the model into the HuggingFace cache directory. File discovery and Tree-sitter
+parsing run in parallel across CPU cores, and embedding uses a single shared
+model session; no GPU is required. Function sources and queries are truncated
+to 256 tokens.
 
 ## Install
 
-Sift requires a current stable Rust toolchain. From this repository, run:
+Sift requires Rust 1.85 or newer (the crate uses edition 2024). From this
+repository, run:
 
 ```bash
 cargo install --path .
@@ -89,6 +92,38 @@ The benchmark reports average recall across the queries and median search time
 in milliseconds for both implementations. Query embedding time is not included.
 `--top` defaults to 10 and `--runs` defaults to 50.
 
+## Evaluating Retrieval Quality
+
+After ingesting a codebase, create a JSON file describing judged queries. Each
+entry pairs a natural-language query with the functions that should be
+retrieved, graded from 1 (marginally relevant) to 3 (highly relevant):
+
+```json
+[
+  {
+    "query": "compute cosine similarity between two vectors",
+    "relevant": [
+      {
+        "path": "src/similarity.rs",
+        "header": "pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32",
+        "relevance": 3
+      }
+    ]
+  }
+]
+```
+
+Then measure average nDCG@k over the judgements:
+
+```bash
+sift evaluate --judgements judgements.json --top 10
+```
+
+A judgement matches a search result when the header is identical and the
+indexed path ends with the judgement's path. `--top` defaults to 10. Evaluation
+always uses exhaustive search so the score measures retrieval quality rather
+than HNSW approximation.
+
 ## Supported Files
 
 - Rust: `.rs`
@@ -116,32 +151,16 @@ query exhaustively with the embeddings stored in `index.json`.
 If the embedding model or the text being embedded changes, run `sift ingest`
 again so both files are rebuilt together.
 
-## Ingestion Performance
-
-Release-mode benchmarks on an Intel i7-9700K with eight physical cores and a
-cached model produced the following results:
-
-| Repository | Functions | Serial ingest | Parallel ingest | Speedup |
-|---|---:|---:|---:|---:|
-| ripgrep | 2,744 | 16.1 s | 10.52 s | 1.53x |
-| rust-analyzer | 23,734 | 170.78 s | 123.46 s | 1.38x |
-
-The rust-analyzer figures are medians across five runs. Parallel ingestion
-reduced elapsed time by 27.7%, saving 47.32 seconds per ingest. Peak memory rose
-from approximately 430 MiB to 741 MiB because multiple model sessions are held
-in memory concurrently. All 23,734 serial and parallel records had identical
-metadata and embedding vectors.
-
 ## How It Works
 
 Ingestion:
 
 ```text
 directory
--> recursively discover supported, non-ignored source files
+-> recursively discover supported, non-ignored source files in parallel
 -> extract functions and methods with Tree-sitter
--> sort full function sources by length with deterministic path/line tie-breaks
--> embed full function sources concurrently across independent CPU model sessions
+-> sort function sources by length with deterministic path/line tie-breaks
+-> embed sources with a single shared model session in batches of 1024
 -> build the exact-search records and custom HNSW graph
 -> write .sift-index/index.json and .sift-index/hnsw.bin
 ```
@@ -150,24 +169,26 @@ Search:
 
 ```text
 query
--> Snowflake Arctic Embed XS query embedding
+-> Potion query embedding
 -> load .sift-index/index.json
 -> load .sift-index/hnsw.bin and search HNSW (default)
    or run exhaustive cosine search over every record (--exact)
 -> print the top matches with source locations
 ```
 
-Full function source is embedded for retrieval. Results remain compact by
-printing only the function or method header with its source location and score.
+Function source is embedded for retrieval, truncated to 256 tokens. Results
+remain compact by printing only the function or method header with its source
+location and score.
 
 ## Roadmap
 
-The current implementation includes parallel CPU embedding, a persisted custom
-HNSW graph, and a repeatable exact-versus-HNSW benchmark.
+The current implementation includes parallel file discovery and parsing, a
+persisted custom HNSW graph, an exact-versus-HNSW benchmark, and graded
+evaluation with nDCG@k.
 
 Planned work:
 
-- Add evaluation datasets and identifier-aware or hybrid retrieval signals.
+- Add identifier-aware or hybrid retrieval signals.
 - Tune HNSW parameters and measure recall and latency on larger repositories.
 - Replace JSON vector storage with a compact representation and support more
   efficient re-indexing.
