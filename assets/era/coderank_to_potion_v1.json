@@ -1,0 +1,57 @@
+{
+  "name": "era_coderank_to_potion",
+  "version": 1,
+  "description": "ERA Stage 2 linear adapter mapping CodeRankEmbed query vectors into Potion's 256-d document space (learned-cosine alignment init).",
+  "file": "coderank_to_potion_v1.f32",
+  "sha256": "887e06fc8ce0c37b7e5cdd3495526b02b38741a3cc0b94223bb7c85254bedc00",
+  "shape": [
+    768,
+    256
+  ],
+  "dtype": "float32",
+  "byte_order": "little",
+  "layout": "row-major",
+  "operation": "adapted = L2_normalize(codeRank_emb @ W)",
+  "bias": false,
+  "input": {
+    "model_id": "nomic-ai/CodeRankEmbed",
+    "revision": "3c4b60807d71f79b43f3c4363786d9493691f8b1",
+    "query_prefix": "search_query: ",
+    "max_seq_length": 512,
+    "normalize_embeddings": true,
+    "embedding_dim": 768
+  },
+  "output": {
+    "dim": 256,
+    "normalize": "l2"
+  },
+  "document_space": {
+    "model_id": "minishlab/potion-code-16M-v2",
+    "revision": "e9d2a44ca6a05ac6685f3b23709ea57eb7352d5b",
+    "renderer": "canonical_v1",
+    "note": "Lab evaluation used canonical_v1 documents. Sift's raw-source index is not yet verified compatible; see ERA_IMPLEMENTATION_PLAN.md phase 2."
+  },
+  "training": {
+    "script": "training/20_era_stage2_v2.py",
+    "args": "--encoder coderank --init learned",
+    "checkpoint": "artifacts/era/stage2_v2/checkpoint_coderank-learned.npz",
+    "array": "w",
+    "selected_epoch": 152,
+    "val_ndcg@10": 0.06020238016951722,
+    "val_loss": 1.1094971895217896
+  },
+  "evaluation": {
+    "protocol": "development transfer: 60 frozen tasks, exact cosine search",
+    "ndcg@10": {
+      "potion_query": 0.13643978457524314,
+      "alignment_init": 0.13554051047026547,
+      "stage2": 0.17965873264287963
+    },
+    "paired_delta_vs_potion": {
+      "mean": 0.043218948067636515,
+      "ci_lower": -0.007579881531040671,
+      "ci_upper": 0.09476985194664052,
+      "num_queries": 60
+    }
+  }
+}

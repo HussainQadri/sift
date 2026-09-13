@@ -1,4 +1,5 @@
 use crate::{cli::Commands, search::query_search};
+mod era;
 mod search;
 use clap::Parser;
 mod benchmark;
