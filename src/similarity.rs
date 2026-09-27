@@ -33,4 +33,10 @@ mod tests {
 
         assert_eq!(score, 0.0);
     }
+
+    #[test]
+    fn zero_vectors_return_zero() {
+        let score = cosine_similarity(&[0.0, 0.0], &[0.0, 0.0]);
+        assert_eq!(score, 0.0);
+    }
 }
