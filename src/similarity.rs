@@ -8,8 +8,12 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
         a_sum_squares += a[x] * a[x];
         b_sum_squares += b[x] * b[x];
     }
+    let denominator = a_sum_squares.sqrt() * b_sum_squares.sqrt();
+    if denominator == 0.0 {
+        return 0.0;
+    }
 
-    dot / (a_sum_squares.sqrt() * b_sum_squares.sqrt())
+    dot / denominator
 }
 
 #[cfg(test)]
