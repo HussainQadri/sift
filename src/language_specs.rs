@@ -4,6 +4,7 @@ pub fn rust_spec() -> LanguageSpec {
     LanguageSpec {
         language: tree_sitter_rust::LANGUAGE.into(),
         function_query: r#"(function_item body: (block) @body) @function"#,
+        doc_comment_prefixes: &["///", "/**"],
     }
 }
 
@@ -14,6 +15,8 @@ pub fn python_spec() -> LanguageSpec {
               (function_definition
                 body: (block) @body) @function
           "#,
+        // Python docstrings are already part of the function body
+        doc_comment_prefixes: &[],
     }
 }
 pub fn cpp_spec() -> LanguageSpec {
@@ -23,6 +26,7 @@ pub fn cpp_spec() -> LanguageSpec {
               (function_definition
                 body: (compound_statement) @body) @function
           "#,
+        doc_comment_prefixes: &["//", "/*"],
     }
 }
 
@@ -31,6 +35,7 @@ pub fn java_spec() -> LanguageSpec {
         language: tree_sitter_java::LANGUAGE.into(),
         function_query: r#"(method_declaration
               body: (block) @body) @function"#,
+        doc_comment_prefixes: &["//", "/*"],
     }
 }
 pub fn spec_for_file(path: &Path) -> anyhow::Result<LanguageSpec> {
@@ -39,7 +44,7 @@ pub fn spec_for_file(path: &Path) -> anyhow::Result<LanguageSpec> {
     match extension_string {
         Some("rs") => Ok(rust_spec()),
         Some("py") => Ok(python_spec()),
-        Some("cpp") => Ok(cpp_spec()),
+        Some("cpp" | "cc" | "cxx" | "h" | "hpp") => Ok(cpp_spec()),
         Some("java") => Ok(java_spec()),
         Some(_ext) => anyhow::bail!("Unsupported file extension"),
         None => anyhow::bail!("File has no extension"),
@@ -49,6 +54,8 @@ pub fn spec_for_file(path: &Path) -> anyhow::Result<LanguageSpec> {
 pub struct LanguageSpec {
     pub(crate) language: tree_sitter::Language,
     pub(crate) function_query: &'static str,
+    /// Comments directly above a function that start with one of these are embedded with it
+    pub(crate) doc_comment_prefixes: &'static [&'static str],
 }
 
 #[cfg(test)]
@@ -61,6 +68,10 @@ mod tests {
         assert!(spec_for_file(Path::new("main.rs")).is_ok());
         assert!(spec_for_file(Path::new("module.py")).is_ok());
         assert!(spec_for_file(Path::new("engine.cpp")).is_ok());
+        assert!(spec_for_file(Path::new("engine.cc")).is_ok());
+        assert!(spec_for_file(Path::new("engine.cxx")).is_ok());
+        assert!(spec_for_file(Path::new("engine.h")).is_ok());
+        assert!(spec_for_file(Path::new("engine.hpp")).is_ok());
         assert!(spec_for_file(Path::new("MapView.java")).is_ok());
     }
 
