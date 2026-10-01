@@ -93,7 +93,7 @@ fn relevance_for_result(result: &IndexedFunction, relevant_functions: &[Relevant
     0
 }
 
-pub fn run_evaluation(judgements: &Path, top_k: usize) -> anyhow::Result<f64> {
+pub fn run_evaluation(judgements: &Path, top_k: usize, era: bool) -> anyhow::Result<f64> {
     if top_k == 0 {
         anyhow::bail!("Top k must be greater than 0");
     }
@@ -103,13 +103,12 @@ pub fn run_evaluation(judgements: &Path, top_k: usize) -> anyhow::Result<f64> {
     if loaded_indexed_functions.is_empty() {
         anyhow::bail!("The index is empty, please run `sift ingest` first");
     }
-    let model = embeddings_generator::create_embedding_model()?;
+    let mut query_encoder = embeddings_generator::QueryEncoder::load(era)?;
 
     let mut ndcg_total = 0.0;
     let query_count = judged_query_vec.len();
     for judgement in judged_query_vec {
-        let judgement_query_embedding =
-            embeddings_generator::create_query_embedding(&model, &judgement.query)?;
+        let judgement_query_embedding = query_encoder.encode_query(&judgement.query)?;
         let results = search::search_using_brute_force(
             &judgement_query_embedding,
             &loaded_indexed_functions,
@@ -130,7 +129,7 @@ pub fn run_evaluation(judgements: &Path, top_k: usize) -> anyhow::Result<f64> {
 
     Ok(ndcg_total / query_count as f64)
 }
-pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<()> {
+pub fn run_benchmark(queries: &Path, top: usize, runs: usize, era: bool) -> anyhow::Result<()> {
     // Load queries
     let queries_vec = read_queries_file(queries)?;
     if queries_vec.is_empty() {
@@ -151,7 +150,7 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
         anyhow::bail!("The index is empty, please run `sift ingest` first");
     }
 
-    let model = embeddings_generator::create_embedding_model()?;
+    let mut query_encoder = embeddings_generator::QueryEncoder::load(era)?;
 
     // For each query, run that query 'run' times with brute force and hnsw whilst timing both
     // Calculate recall once
@@ -161,7 +160,7 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
     let mut total_recall_score: f32 = 0.0;
     let query_count = queries_vec.len() as f32;
     for query in queries_vec {
-        let query_embedding = embeddings_generator::create_query_embedding(&model, &query)?;
+        let query_embedding = query_encoder.encode_query(&query)?;
         for run in 0..runs {
             // TODO: Clean this up, too much repeated code
             let brute_force_start = Instant::now();

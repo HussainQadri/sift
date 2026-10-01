@@ -36,6 +36,10 @@ pub struct Cli {
     #[arg(long)]
     pub exact: bool,
 
+    /// Encode queries with CodeRank and the ERA adapter instead of Potion
+    #[arg(long, global = true)]
+    pub era: bool,
+
     #[command(subcommand)]
     pub commands: Option<Commands>,
 }
