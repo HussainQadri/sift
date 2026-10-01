@@ -44,11 +44,11 @@ fn main() -> anyhow::Result<()> {
         }
 
         Some(Commands::Benchmark { queries, top, runs }) => {
-            benchmark::run_benchmark(&queries, top, runs)?;
+            benchmark::run_benchmark(&queries, top, runs, args.era)?;
         }
 
         Some(Commands::Evaluate { judgements, top }) => {
-            let average_ndcg_score = benchmark::run_evaluation(&judgements, top)?;
+            let average_ndcg_score = benchmark::run_evaluation(&judgements, top, args.era)?;
             println!("Average nDCG@{}: {}", top, average_ndcg_score);
         }
 

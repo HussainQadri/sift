@@ -23,8 +23,8 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
         anyhow::bail!("The index is empty, run `sift ingest <path>` first.");
     }
 
-    let model = embeddings_generator::create_embedding_model()?;
-    let query = embeddings_generator::create_query_embedding(&model, &keywords)?;
+    let mut query_encoder = embeddings_generator::QueryEncoder::load(args.era)?;
+    let query = query_encoder.encode_query(&keywords)?;
     let search_results = if args.exact {
         search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?
     } else {
