@@ -1,3 +1,5 @@
+use crate::coderank::{CodeRankEncoder, coderank_model_dir};
+
 const ADAPTER_BYTES: &[u8] = include_bytes!("../assets/era/coderank_to_potion_v1.f32");
 
 fn load_adapter(adapter_bytes: &[u8]) -> Vec<f32> {
@@ -11,7 +13,7 @@ fn load_adapter(adapter_bytes: &[u8]) -> Vec<f32> {
         .collect()
 }
 
-fn adapt_query_embedding(coderank_embedding: &[f32]) -> anyhow::Result<Vec<f32>> {
+pub fn adapt_query_embedding(coderank_embedding: &[f32]) -> anyhow::Result<Vec<f32>> {
     anyhow::ensure!(
         coderank_embedding.len() == 768,
         "expected 768-dimensional CodeRank embedding, got {}",
@@ -35,6 +37,22 @@ fn adapt_query_embedding(coderank_embedding: &[f32]) -> anyhow::Result<Vec<f32>>
         *element /= length;
     }
     Ok(output)
+}
+
+pub struct EraQueryEncoder {
+    coderank: CodeRankEncoder,
+}
+
+impl EraQueryEncoder {
+    pub fn load() -> anyhow::Result<Self> {
+        let coderank = CodeRankEncoder::load(&coderank_model_dir()?)?;
+        Ok(Self { coderank })
+    }
+
+    pub fn encode_query(&mut self, query: &str) -> anyhow::Result<Vec<f32>> {
+        let coderank_embedding = self.coderank.encode_query(query)?;
+        adapt_query_embedding(&coderank_embedding)
+    }
 }
 
 #[test]
