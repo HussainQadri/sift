@@ -52,9 +52,8 @@ pub fn extract_functions(
 
         if let (Some(function), Some(body)) = (function_node, body_node) {
             let header = &source[function.start_byte()..body.start_byte()];
-            let function_source = function
-                .utf8_text(source.as_bytes())
-                .map_err(|error| anyhow::anyhow!("failed to extract function source {error}"))?;
+            let source_start = doc_comment_start(function, source, spec.doc_comment_prefixes);
+            let function_source = &source[source_start..function.end_byte()];
 
             result_vector.push(ExtractedFunction {
                 header: header.trim().to_string(),
@@ -65,6 +64,33 @@ pub fn extract_functions(
     }
 
     Ok(result_vector)
+}
+
+fn doc_comment_start(function: Node, source: &str, doc_comment_prefixes: &[&str]) -> usize {
+    let anchor = match function.parent() {
+        Some(parent) if parent.kind() == "template_declaration" => parent,
+        _ => function,
+    };
+    let mut start = anchor.start_byte();
+    let mut previous = anchor.prev_named_sibling();
+    while let Some(node) = previous {
+        match node.kind() {
+            "attribute_item" => {}
+            "comment" | "line_comment" | "block_comment" => {
+                let text = &source[node.start_byte()..node.end_byte()];
+                if !doc_comment_prefixes
+                    .iter()
+                    .any(|prefix| text.starts_with(prefix))
+                {
+                    break;
+                }
+                start = node.start_byte();
+            }
+            _ => break,
+        }
+        previous = node.prev_named_sibling();
+    }
+    start
 }
 
 #[cfg(test)]
@@ -88,5 +114,58 @@ mod tests {
         assert!(functions[1].source.contains("value + 1"));
         assert_eq!(functions[1].line_number, 4);
         Ok(())
+    }
+
+    fn extract(
+        spec: crate::language_specs::LanguageSpec,
+        source: &str,
+    ) -> Vec<super::ExtractedFunction> {
+        let mut parser = Parser::new();
+        parser.set_language(&spec.language).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        extract_functions(tree.root_node(), source, &spec).unwrap()
+    }
+
+    #[test]
+    fn rust_doc_comments_are_kept_with_the_function() {
+        let source = "// not a doc comment\n/// Adds one.\n#[inline]\npub fn wanted(value: i32) -> i32 {\n    value + 1\n}\n";
+        let functions = extract(language_specs::rust_spec(), source);
+
+        assert!(
+            functions[0]
+                .source
+                .starts_with("/// Adds one.\n#[inline]\npub fn wanted")
+        );
+        assert_eq!(functions[0].header, "pub fn wanted(value: i32) -> i32");
+        assert_eq!(functions[0].line_number, 4);
+    }
+
+    #[test]
+    fn functions_without_doc_comments_start_at_the_function() {
+        let source = "// a plain comment\nfn wanted() {}\n";
+        let functions = extract(language_specs::rust_spec(), source);
+
+        assert_eq!(functions[0].source, "fn wanted() {}");
+    }
+
+    #[test]
+    fn javadoc_is_kept_with_the_method() {
+        let source = "class A {\n    /** Returns one. */\n    int one() { return 1; }\n}\n";
+        let functions = extract(language_specs::java_spec(), source);
+
+        assert!(functions[0].source.starts_with("/** Returns one. */"));
+    }
+
+    #[test]
+    fn cpp_comments_above_templates_are_kept_with_the_function() {
+        let source = "// Returns the larger value.\ntemplate <typename T>\nT larger(T a, T b) { return a > b ? a : b; }\n";
+        let functions = extract(language_specs::cpp_spec(), source);
+
+        assert!(
+            functions[0]
+                .source
+                .starts_with("// Returns the larger value.\ntemplate <typename T>")
+        );
+        assert_eq!(functions[0].line_number, 3);
     }
 }
