@@ -157,11 +157,13 @@ Average nDCG@10:  0.972
 
 - Rust: `.rs`
 - Python: `.py`
-- C++: `.cpp`
+- C++: `.cpp`, `.cc`, `.cxx`, `.h`, `.hpp`
 - Java: `.java`
 
 Sift currently indexes function definitions in Rust, Python, and C++, and method
-declarations in Java.
+declarations in Java. Doc comments directly above a function (`///` and `/** */`
+in Rust, any comment in C++ and Java) are embedded with it; Python docstrings are
+already part of the function body.
 
 ## Index Files
 
@@ -218,6 +220,5 @@ evaluation with nDCG@k.
 Planned work:
 
 - Add identifier-aware or hybrid retrieval signals.
-- Tune HNSW parameters and measure recall and latency on larger repositories.
 - Replace JSON vector storage with a compact representation and support more
   efficient re-indexing.
