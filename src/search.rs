@@ -98,8 +98,6 @@ pub fn search_using_hnsw<'a>(
     Ok(result_vec)
 }
 
-// TODO: Extract exact search to return top-k record IDs,
-// then compare with HNSW results to calculate recall@k.
 pub fn search_using_brute_force<'a>(
     query: &[f32],
     loaded_indexed_functions: &'a [IndexedFunction],
