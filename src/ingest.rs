@@ -113,7 +113,7 @@ pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutpu
     let persisted = index::PersistedHnswIndex {
         nodes: persisted_nodes,
         entry_point: hnsw_index.entry_point,
-        ef: hnsw_index.ef,
+        ef_construction: hnsw_index.ef_construction,
         m: hnsw_index.m,
         max_layer: hnsw_index.max_layer,
     };

@@ -20,7 +20,7 @@ pub struct PersistedHnswIndex {
     pub(crate) entry_point: Option<usize>,
     pub(crate) max_layer: usize,
     pub(crate) m: usize,
-    pub(crate) ef: usize,
+    pub(crate) ef_construction: usize,
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
@@ -132,7 +132,7 @@ fn hnsw_index_round_trips() {
                 embedding: vec![4.6, 3.2],
             },
         ],
-        ef: 8,
+        ef_construction: 8,
         entry_point: Some(0),
         m: 32,
         max_layer: 1,

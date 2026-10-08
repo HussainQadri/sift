@@ -49,7 +49,7 @@ pub fn load_runtime_index() -> anyhow::Result<hnsw::HnswIndex> {
 
     // Reassign entry_point, ef, m and max_layer to runtime index
     index.entry_point = deserialised_hnsw_graph.entry_point;
-    index.ef = deserialised_hnsw_graph.ef;
+    index.ef_construction = deserialised_hnsw_graph.ef_construction;
     index.m = deserialised_hnsw_graph.m;
     index.max_layer = deserialised_hnsw_graph.max_layer;
 

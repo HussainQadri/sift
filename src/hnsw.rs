@@ -4,19 +4,19 @@ use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashSet};
 
 impl HnswIndex {
-    pub fn new(m: usize, ef: usize) -> Self {
+    pub fn new(m: usize, ef_construction: usize) -> Self {
         assert!(m > 1);
         Self {
             nodes: Vec::new(),
             entry_point: None,
             max_layer: 0,
             m,
-            ef,
+            ef_construction,
         }
     }
 
     pub fn search(&self, embedding_vec: &[f32], top_k: usize) -> Vec<usize> {
-        search(self, embedding_vec, self.ef, top_k)
+        search(self, embedding_vec, self.ef_construction, top_k)
     }
 
     pub fn insert(&mut self, record_id: usize, embedding_vec: Vec<f32>) {
@@ -65,7 +65,7 @@ pub struct HnswIndex {
     pub(crate) entry_point: Option<usize>,
     pub(crate) max_layer: usize,
     pub(crate) m: usize,
-    pub(crate) ef: usize,
+    pub(crate) ef_construction: usize,
 }
 
 pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>, record_id: usize) -> Node {
@@ -114,7 +114,7 @@ fn insert_node(index: &mut HnswIndex, mut node_to_insert: Node) {
                 index,
                 &node_to_insert.embedding,
                 current_id,
-                index.ef,
+                index.ef_construction,
                 node_layer,
             );
             let best_m_neighbours: Vec<usize> =
@@ -353,7 +353,7 @@ mod tests {
             entry_point: None,
             max_layer: 0,
             m: 2,
-            ef: 2,
+            ef_construction: 2,
         }
     }
 
@@ -397,7 +397,7 @@ mod tests {
             nodes: vec![node(0, vec![1.0, 0.0], vec![Vec::new()])],
             entry_point: Some(0),
             m: 2,
-            ef: 2,
+            ef_construction: 2,
             max_layer: 0,
         };
         let taller_node = node(1, vec![0.9, 0.1], vec![Vec::new(), Vec::new(), Vec::new()]);
@@ -419,11 +419,11 @@ mod tests {
             ],
             entry_point: Some(0),
             m: 2,
-            ef: 2,
+            ef_construction: 2,
             max_layer: 3,
         };
 
-        let results = search_layer(&index, &[1.0, 0.0], 0, index.ef, 0);
+        let results = search_layer(&index, &[1.0, 0.0], 0, index.ef_construction, 0);
 
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].0, 0);
@@ -441,11 +441,11 @@ mod tests {
             ],
             entry_point: Some(0),
             m: 2,
-            ef: 3,
+            ef_construction: 3,
             max_layer: 1,
         };
 
-        let results = search(&index, &[0.8, 0.2], index.ef, 2);
+        let results = search(&index, &[0.8, 0.2], index.ef_construction, 2);
 
         assert_eq!(results, vec![2, 0]);
     }
@@ -460,7 +460,7 @@ mod tests {
             ],
             entry_point: Some(0),
             m: 2,
-            ef: 2,
+            ef_construction: 2,
         };
         let query_node = node(2, vec![0.9, 0.1], Vec::new());
 
@@ -478,7 +478,7 @@ mod tests {
             ],
             entry_point: Some(0),
             m: 2,
-            ef: 2,
+            ef_construction: 2,
         };
         let query = node(3, vec![1.0, 0.0], Vec::new());
 
@@ -502,7 +502,7 @@ mod tests {
             max_layer: 0,
             entry_point: Some(0),
             m: 2,
-            ef: 3,
+            ef_construction: 3,
         };
         let query = [1.0, 0.0];
         let candidates: Vec<(usize, f32)> = index
