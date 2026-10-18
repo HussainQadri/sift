@@ -248,6 +248,8 @@ fn median(timings: &mut [f64]) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::index::IndexedFunction;
 
     use super::{RelevantFunction, dcg, ndcg, parse_judgements, relevance_for_result};
@@ -345,7 +347,7 @@ mod tests {
             header: String::from("pub fn build_parallel(self)"),
             source: String::from("let test_source = vec![];"),
             line_number: 8,
-            embedding: vec![1.2, 3.0, 5.0, 6.0],
+            embedding: Arc::from(vec![1.2, 3.0, 5.0, 6.0]),
             record_id: 0,
         };
 

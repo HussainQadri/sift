@@ -2,6 +2,7 @@ use crate::similarity;
 use rand::RngExt;
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashSet};
+use std::sync::Arc;
 
 impl HnswIndex {
     pub fn new(m: usize, ef_construction: usize) -> Self {
@@ -19,7 +20,7 @@ impl HnswIndex {
         search(self, embedding_vec, self.ef_construction, top_k)
     }
 
-    pub fn insert(&mut self, record_id: usize, embedding_vec: Vec<f32>) {
+    pub fn insert(&mut self, record_id: usize, embedding_vec: Arc<[f32]>) {
         insert(self, record_id, embedding_vec);
     }
 }
@@ -27,7 +28,7 @@ impl HnswIndex {
 #[derive(Clone)]
 pub struct Node {
     pub(crate) id: usize, // Internal HNSW id, record_ids are translated into this id.
-    pub(crate) embedding: Vec<f32>,
+    pub(crate) embedding: Arc<[f32]>,
     pub(crate) neighbours: Vec<Vec<usize>>,
     pub(crate) record_id: usize,
 }
@@ -68,7 +69,7 @@ pub struct HnswIndex {
     pub(crate) ef_construction: usize,
 }
 
-pub fn create_node(index: &HnswIndex, embedding_vec: Vec<f32>, record_id: usize) -> Node {
+pub fn create_node(index: &HnswIndex, embedding_vec: Arc<[f32]>, record_id: usize) -> Node {
     let random_max_layer = get_random_level(index.m);
     Node {
         id: index.nodes.len(),
@@ -87,7 +88,7 @@ pub fn get_random_level(m: usize) -> usize {
     let u: f32 = rng.random_range(f32::MIN_POSITIVE..1.0);
     ((-u.ln() * m_l).floor() as usize).min(MAX_ALLOWED_LAYER)
 }
-pub fn insert(index: &mut HnswIndex, record_id: usize, embedding_vec: Vec<f32>) {
+pub fn insert(index: &mut HnswIndex, record_id: usize, embedding_vec: Arc<[f32]>) {
     let node_to_insert = create_node(index, embedding_vec, record_id);
     insert_node(index, node_to_insert);
 }
@@ -341,6 +342,8 @@ pub fn calculate_most_similiar_neighbours(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::{
         HnswIndex, Node, calculate_most_similiar_neighbours, insert, insert_node,
         maintain_diverse_neighbours, search, search_greedy, search_layer,
@@ -357,7 +360,7 @@ mod tests {
         }
     }
 
-    fn node(id: usize, embedding: Vec<f32>, neighbours: Vec<Vec<usize>>) -> Node {
+    fn node(id: usize, embedding: Arc<[f32]>, neighbours: Vec<Vec<usize>>) -> Node {
         Node {
             id,
             embedding,
@@ -370,12 +373,12 @@ mod tests {
     fn first_insert_sets_entry_point_and_stores_node() {
         let mut index = empty_index();
 
-        insert(&mut index, 0, vec![1.0, 0.0]);
+        insert(&mut index, 0, Arc::from(vec![1.0, 0.0]));
 
         assert_eq!(index.entry_point, Some(0));
         assert_eq!(index.nodes.len(), 1);
         assert_eq!(index.nodes[0].id, 0);
-        assert_eq!(index.nodes[0].embedding, vec![1.0, 0.0]);
+        assert_eq!(index.nodes[0].embedding, Arc::from(vec![1.0, 0.0]));
         assert!(index.nodes[0].neighbours[0].is_empty());
     }
 
@@ -383,8 +386,8 @@ mod tests {
     fn second_insert_links_new_node_bidirectionally_to_entry_point() {
         let mut index = empty_index();
 
-        insert(&mut index, 0, vec![1.0, 0.0]);
-        insert(&mut index, 0, vec![0.9, 0.1]);
+        insert(&mut index, 0, Arc::from(vec![1.0, 0.0]));
+        insert(&mut index, 0, Arc::from(vec![0.9, 0.1]));
 
         assert_eq!(index.nodes.len(), 2);
         assert_eq!(index.nodes[0].neighbours[0], vec![1]);
@@ -394,13 +397,17 @@ mod tests {
     #[test]
     fn taller_inserted_node_becomes_entry_point_and_updates_max_layer() {
         let mut index = HnswIndex {
-            nodes: vec![node(0, vec![1.0, 0.0], vec![Vec::new()])],
+            nodes: vec![node(0, Arc::from(vec![1.0, 0.0]), vec![Vec::new()])],
             entry_point: Some(0),
             m: 2,
             ef_construction: 2,
             max_layer: 0,
         };
-        let taller_node = node(1, vec![0.9, 0.1], vec![Vec::new(), Vec::new(), Vec::new()]);
+        let taller_node = node(
+            1,
+            Arc::from(vec![0.9, 0.1]),
+            vec![Vec::new(), Vec::new(), Vec::new()],
+        );
 
         insert_node(&mut index, taller_node);
 
@@ -413,9 +420,9 @@ mod tests {
     fn search_layer_returns_up_to_ef_best_reachable_nodes() {
         let index = HnswIndex {
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![vec![1, 2]]),
-                node(1, vec![0.0, 1.0], vec![vec![0]]),
-                node(2, vec![0.9, 0.1], vec![vec![0]]),
+                node(0, Arc::from(vec![1.0, 0.0]), vec![vec![1, 2]]),
+                node(1, Arc::from(vec![0.0, 1.0]), vec![vec![0]]),
+                node(2, Arc::from(vec![0.9, 0.1]), vec![vec![0]]),
             ],
             entry_point: Some(0),
             m: 2,
@@ -435,9 +442,9 @@ mod tests {
     fn search_descends_upper_layers_then_returns_top_k_from_layer_zero() {
         let index = HnswIndex {
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![vec![1], vec![2]]),
-                node(1, vec![0.0, 1.0], vec![vec![0, 2]]),
-                node(2, vec![0.9, 0.1], vec![vec![0, 1], vec![0]]),
+                node(0, Arc::from(vec![1.0, 0.0]), vec![vec![1], vec![2]]),
+                node(1, Arc::from(vec![0.0, 1.0]), vec![vec![0, 2]]),
+                node(2, Arc::from(vec![0.9, 0.1]), vec![vec![0, 1], vec![0]]),
             ],
             entry_point: Some(0),
             m: 2,
@@ -455,14 +462,14 @@ mod tests {
         let index = HnswIndex {
             max_layer: 3,
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![vec![1]]),
-                node(1, vec![0.0, 1.0], vec![vec![0]]),
+                node(0, Arc::from(vec![1.0, 0.0]), vec![vec![1]]),
+                node(1, Arc::from(vec![0.0, 1.0]), vec![vec![0]]),
             ],
             entry_point: Some(0),
             m: 2,
             ef_construction: 2,
         };
-        let query_node = node(2, vec![0.9, 0.1], Vec::new());
+        let query_node = node(2, Arc::from(vec![0.9, 0.1]), Vec::new());
 
         assert_eq!(search_greedy(&index, &query_node.embedding, 0, 0), 0);
     }
@@ -472,15 +479,15 @@ mod tests {
         let index = HnswIndex {
             max_layer: 3,
             nodes: vec![
-                node(0, vec![1.0, 0.0], vec![vec![1, 2]]),
-                node(1, vec![0.0, 1.0], vec![vec![0]]),
-                node(2, vec![0.8, 0.2], vec![vec![0]]),
+                node(0, Arc::from(vec![1.0, 0.0]), vec![vec![1, 2]]),
+                node(1, Arc::from(vec![0.0, 1.0]), vec![vec![0]]),
+                node(2, Arc::from(vec![0.8, 0.2]), vec![vec![0]]),
             ],
             entry_point: Some(0),
             m: 2,
             ef_construction: 2,
         };
-        let query = node(3, vec![1.0, 0.0], Vec::new());
+        let query = node(3, Arc::from(vec![1.0, 0.0]), Vec::new());
 
         let neighbours =
             calculate_most_similiar_neighbours(&index.nodes[0], &query.embedding, &index, 0);
@@ -495,9 +502,9 @@ mod tests {
     fn maintain_diverse_neighbours_rejects_redundancy_and_honours_limit() {
         let index = HnswIndex {
             nodes: vec![
-                node(0, vec![0.9848077, 0.1736482], vec![Vec::new()]),
-                node(1, vec![0.9396926, 0.34202015], vec![Vec::new()]),
-                node(2, vec![0.5, -0.8660254], vec![Vec::new()]),
+                node(0, Arc::from(vec![0.9848077, 0.1736482]), vec![Vec::new()]),
+                node(1, Arc::from(vec![0.9396926, 0.34202015]), vec![Vec::new()]),
+                node(2, Arc::from(vec![0.5, -0.8660254]), vec![Vec::new()]),
             ],
             max_layer: 0,
             entry_point: Some(0),
@@ -528,7 +535,7 @@ mod tests {
         let mut index = empty_index();
 
         for i in 0..20 {
-            insert(&mut index, 0, vec![1.0, i as f32 / 100.0]);
+            insert(&mut index, 0, Arc::from(vec![1.0, i as f32 / 100.0]));
         }
 
         assert!(index.nodes.iter().all(|node| {

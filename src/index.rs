@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
+use std::{fs, path::Path, sync::Arc};
 
 const INDEX_PATH: &str = ".sift-index/index.json";
 pub const HNSW_INDEX_PATH: &str = ".sift-index/hnsw.bin";
@@ -10,7 +10,7 @@ pub struct IndexedFunction {
     pub(crate) header: String,
     pub(crate) source: String,
     pub(crate) line_number: usize,
-    pub(crate) embedding: Vec<f32>,
+    pub(crate) embedding: Arc<[f32]>,
     pub(crate) record_id: usize,
 }
 
@@ -27,7 +27,7 @@ pub struct PersistedHnswIndex {
 pub struct PersistedHnswNode {
     pub(crate) record_id: usize,
     pub(crate) neighbours: Vec<Vec<usize>>,
-    pub(crate) embedding: Vec<f32>,
+    pub(crate) embedding: Arc<[f32]>,
 }
 
 pub fn save_index(indexed_functions: &[IndexedFunction]) -> anyhow::Result<()> {
@@ -77,6 +77,7 @@ mod tests {
     use super::{IndexedFunction, load_index_at, save_index_at};
     use std::{
         fs,
+        sync::Arc,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -91,12 +92,13 @@ mod tests {
                 .as_nanos()
         ));
         let index_path = test_dir.join(".sift/index.json");
+        let embedding_vec = vec![0.25, -0.5, 1.0];
         let records = vec![IndexedFunction {
             path: "src/index.rs".to_string(),
             header: "pub fn load_index()".to_string(),
             source: "pub fn load_index() {}".to_string(),
             line_number: 47,
-            embedding: vec![0.25, -0.5, 1.0],
+            embedding: Arc::from(embedding_vec),
             record_id: 0,
         }];
 
@@ -124,12 +126,12 @@ fn hnsw_index_round_trips() {
             PersistedHnswNode {
                 record_id: 10,
                 neighbours: vec![vec![1], vec![]],
-                embedding: vec![2.6, 3.2],
+                embedding: Arc::from(vec![2.6, 3.2]),
             },
             PersistedHnswNode {
                 record_id: 20,
                 neighbours: vec![vec![0]],
-                embedding: vec![4.6, 3.2],
+                embedding: Arc::from(vec![4.6, 3.2]),
             },
         ],
         ef_construction: 8,

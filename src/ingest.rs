@@ -9,6 +9,7 @@ use model2vec_rs::model::StaticModel;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
+use std::sync::Arc;
 use std::time::Instant;
 
 const EMBEDDING_BATCH_SIZE: usize = 1024;
@@ -195,7 +196,7 @@ fn index_embedded_functions(
             header: pending.header,
             source: pending.source,
             line_number: pending.line_number,
-            embedding: embedded_function.embedding,
+            embedding: Arc::from(embedded_function.embedding),
             record_id,
         };
 
