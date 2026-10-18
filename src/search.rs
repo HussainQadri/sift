@@ -28,7 +28,7 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let search_results = if args.exact {
         search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?
     } else {
-        let index = load_runtime_index()?;
+        let index = load_runtime_index(&loaded_indexed_functions)?;
         search_using_hnsw(&index, &query, &loaded_indexed_functions, top_k_results)?
     };
 
@@ -37,7 +37,9 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn load_runtime_index() -> anyhow::Result<hnsw::HnswIndex> {
+pub fn load_runtime_index(
+    indexed_functions: &[IndexedFunction],
+) -> anyhow::Result<hnsw::HnswIndex> {
     // Read hnsw.bin, deserialize, convert each persisted node to runtime node
     // Assign Node.id from node's vector position
     // Copy graph config into runtime HnswIndex
@@ -57,8 +59,18 @@ pub fn load_runtime_index() -> anyhow::Result<hnsw::HnswIndex> {
     for (persisted_node_pos, persisted_node) in
         deserialised_hnsw_graph.nodes.into_iter().enumerate()
     {
+        let embedding = indexed_functions
+            .get(persisted_node.record_id)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "hnsw.bin references missing record {}",
+                    persisted_node.record_id
+                )
+            })?
+            .embedding
+            .clone();
         let runtime_node: hnsw::Node = hnsw::Node {
-            embedding: persisted_node.embedding,
+            embedding,
             id: persisted_node_pos,
             neighbours: persisted_node.neighbours,
             record_id: persisted_node.record_id,

@@ -157,7 +157,7 @@ pub fn run_benchmark(queries: &Path, top: usize, runs: usize) -> anyhow::Result<
     // Calculate recall once
     let mut brute_force_timings = Vec::new();
     let mut hnsw_timings = Vec::new();
-    let runtime_hnsw_index = search::load_runtime_index()?;
+    let runtime_hnsw_index = search::load_runtime_index(&loaded_indexed_functions)?;
     let mut total_recall_score: f32 = 0.0;
     let query_count = queries_vec.len() as f32;
     for query in queries_vec {

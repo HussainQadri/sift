@@ -27,7 +27,6 @@ pub struct PersistedHnswIndex {
 pub struct PersistedHnswNode {
     pub(crate) record_id: usize,
     pub(crate) neighbours: Vec<Vec<usize>>,
-    pub(crate) embedding: Arc<[f32]>,
 }
 
 pub fn save_index(indexed_functions: &[IndexedFunction]) -> anyhow::Result<()> {
@@ -126,12 +125,10 @@ fn hnsw_index_round_trips() {
             PersistedHnswNode {
                 record_id: 10,
                 neighbours: vec![vec![1], vec![]],
-                embedding: Arc::from(vec![2.6, 3.2]),
             },
             PersistedHnswNode {
                 record_id: 20,
                 neighbours: vec![vec![0]],
-                embedding: Arc::from(vec![4.6, 3.2]),
             },
         ],
         ef_construction: 8,

@@ -107,7 +107,6 @@ pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutpu
         persisted_nodes.push(index::PersistedHnswNode {
             neighbours: node.neighbours,
             record_id: node.record_id,
-            embedding: node.embedding,
         })
     }
 
