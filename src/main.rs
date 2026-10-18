@@ -2,6 +2,7 @@ use crate::{cli::Commands, search::query_search};
 mod search;
 use clap::Parser;
 mod benchmark;
+mod bm25;
 mod cli;
 mod cli_output;
 mod embeddings_generator;
