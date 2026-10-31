@@ -172,12 +172,14 @@ Each ingestion writes two files relative to the directory where Sift is run:
 ```text
 .sift-index/
 ├── index.json  # function metadata, source, and embeddings
-└── hnsw.bin    # serialized HNSW graph and embeddings
+└── hnsw.bin    # serialized HNSW graph structure (no embeddings)
 ```
 
-`index.json` is used by both search modes to retrieve result metadata. Default
-search loads `hnsw.bin` to find candidate record IDs; `--exact` compares the
-query exhaustively with the embeddings stored in `index.json`.
+`index.json` is the only store of embeddings and is used by both search modes.
+Default search loads `hnsw.bin` and rebuilds the graph by looking up each
+node's embedding in `index.json` by record ID, then searches it for candidate
+records; `--exact` compares the query exhaustively with every embedding in
+`index.json`.
 
 If the embedding model or the text being embedded changes, run `sift ingest`
 again so both files are rebuilt together.
