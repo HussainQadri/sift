@@ -32,7 +32,6 @@ pub struct IngestOutput {
 }
 pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutput> {
     let mut all_indexed_functions = Vec::new();
-    let mut hnsw_index = hnsw::HnswIndex::new(32, 256);
 
     // Read files in parallel and return a Vec of Vecs containing pending functions
     let discovery_started = Instant::now();
@@ -71,11 +70,8 @@ pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutpu
         .collect::<anyhow::Result<Vec<Vec<PendingFunction>>>>()?;
 
     // Take this Vec<Vec<PendingFunction>> and convert into just Vec<PendingFunction>
-    let mut pending_functions: Vec<PendingFunction> =
-        pending_by_file.into_iter().flatten().collect();
+    let pending_functions: Vec<PendingFunction> = pending_by_file.into_iter().flatten().collect();
 
-    // TODO: This timing code doesn't belong in this function; after we collect into
-    // Vec<Vec<PendingFunction>> the function should have ended - refactor.
     let discovery_time_elapsed = discovery_started.elapsed();
     let function_count = pending_functions.len();
 
@@ -93,14 +89,23 @@ pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutpu
         discovery_time_elapsed.as_secs_f64()
     );
 
+    let persisted_hsnw_index =
+        create_persisted_index(pending_functions, &mut all_indexed_functions)?;
+    Ok(IngestOutput {
+        indexed_functions: all_indexed_functions,
+        hnsw_index: persisted_hsnw_index,
+    })
+}
+
+fn create_persisted_index(
+    mut pending_functions: Vec<PendingFunction>,
+    all_indexed_functions: &mut Vec<IndexedFunction>,
+) -> anyhow::Result<index::PersistedHnswIndex> {
+    let mut hnsw_index = hnsw::HnswIndex::new(32, 256);
     let model = embeddings_generator::create_embedding_model()?;
     let embedded_functions = embed_pending_functions(&model, &mut pending_functions)?;
 
-    index_embedded_functions(
-        &mut hnsw_index,
-        embedded_functions,
-        &mut all_indexed_functions,
-    );
+    index_embedded_functions(&mut hnsw_index, embedded_functions, all_indexed_functions);
 
     let mut persisted_nodes = Vec::new();
     for node in hnsw_index.nodes {
@@ -117,10 +122,7 @@ pub fn ingest_directory(path: &std::path::PathBuf) -> anyhow::Result<IngestOutpu
         m: hnsw_index.m,
         max_layer: hnsw_index.max_layer,
     };
-    Ok(IngestOutput {
-        indexed_functions: all_indexed_functions,
-        hnsw_index: persisted,
-    })
+    Ok(persisted)
 }
 
 fn embed_pending_functions(
