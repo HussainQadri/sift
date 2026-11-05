@@ -1,5 +1,8 @@
 use crate::index::IndexedFunction;
 use std::collections::HashMap;
+const K_1: f32 = 1.2;
+const B: f32 = 0.75;
+
 pub fn tokenize(text: &str) -> anyhow::Result<Vec<String>> {
     let mut cur_word = String::new();
     let mut tokenized_result = Vec::new();
@@ -13,12 +16,13 @@ pub fn tokenize(text: &str) -> anyhow::Result<Vec<String>> {
             }
         }
     }
+    tokenized_result.push(std::mem::take(&mut cur_word));
     Ok(tokenized_result)
 }
 
 /// This function finds the frequency of the i'th query term
 fn calculate_f_i(
-    tokenized_query: &Vec<String>,
+    tokenized_query: &[String],
     i: usize,
     indexed_function: &IndexedFunction,
 ) -> anyhow::Result<usize> {
@@ -65,7 +69,7 @@ fn calculate_doc_freq<'a>(
 }
 
 pub fn get_idf_for_query_tokens<'a>(
-    indexed_functions: &Vec<String>,
+    indexed_functions: &Vec<IndexedFunction>,
     token_freq_map: &HashMap<&'a str, usize>,
     tokenized_query: &'a Vec<String>,
 ) -> anyhow::Result<HashMap<&'a str, f32>> {
@@ -84,12 +88,12 @@ pub fn get_idf_for_query_tokens<'a>(
 }
 
 pub fn get_function_lengths(
-    indexed_functions: &Vec<String>,
+    indexed_functions: &[IndexedFunction],
 ) -> anyhow::Result<HashMap<usize, usize>> {
     let mut function_lengths: HashMap<usize, usize> = HashMap::new();
 
     for (i, indexed_function) in indexed_functions.iter().enumerate() {
-        let tokenized_function = tokenize(indexed_function)?;
+        let tokenized_function = tokenize(&indexed_function.source)?;
         function_lengths.insert(i, tokenized_function.len());
     }
 
@@ -104,6 +108,29 @@ pub fn get_average_function_length(function_lengths: HashMap<usize, usize>) -> a
     }
 
     Ok(total_function_length as f32 / function_lengths.len() as f32)
+}
+
+/// Calculate the BM25 score for one function
+pub fn calculate_bm25_score(
+    indexed_function: &IndexedFunction,
+    tokenized_query: &[String],
+    idf_map: &HashMap<&str, f32>,
+    average_length: f32,
+) -> anyhow::Result<f32> {
+    let mut score = 0.0;
+    for (i, token) in tokenized_query.iter().enumerate() {
+        let idf_t = idf_map
+            .get(token.as_str())
+            .expect("query token missing from idf_map");
+        let numerator = calculate_f_i(tokenized_query, i, indexed_function)? as f32 * (K_1 + 1.0);
+        let denominator = calculate_f_i(tokenized_query, i, indexed_function)? as f32
+            + K_1
+                * (1.0 - B
+                    + B * (tokenize(&indexed_function.source)?.len() as f32
+                        / average_length as f32));
+        score += idf_t * (numerator / denominator);
+    }
+    Ok(score)
 }
 
 #[cfg(test)]
