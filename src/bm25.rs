@@ -83,6 +83,29 @@ pub fn get_idf_for_query_tokens<'a>(
     Ok(token_weight)
 }
 
+pub fn get_function_lengths(
+    indexed_functions: &Vec<String>,
+) -> anyhow::Result<HashMap<usize, usize>> {
+    let mut function_lengths: HashMap<usize, usize> = HashMap::new();
+
+    for (i, indexed_function) in indexed_functions.iter().enumerate() {
+        let tokenized_function = tokenize(indexed_function)?;
+        function_lengths.insert(i, tokenized_function.len());
+    }
+
+    Ok(function_lengths)
+}
+
+pub fn get_average_function_length(function_lengths: HashMap<usize, usize>) -> anyhow::Result<f32> {
+    anyhow::ensure!(function_lengths.len() > 0, "no indexed functions exist");
+    let mut total_function_length = 0;
+    for function_length in function_lengths.values() {
+        total_function_length += function_length;
+    }
+
+    Ok(total_function_length as f32 / function_lengths.len() as f32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
