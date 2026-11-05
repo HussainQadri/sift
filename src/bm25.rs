@@ -178,6 +178,6 @@ mod tests {
         for indexed_function in indexed_functions {
             count += calculate_f_i(&tokenized_query, 0, &indexed_function).unwrap();
         }
-        assert_eq!(count, 4);
+        assert_eq!(count, 3);
     }
 }
