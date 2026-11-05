@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use crate::index::IndexedFunction;
+use std::collections::HashMap;
 pub fn tokenize(text: &str) -> anyhow::Result<Vec<String>> {
     let mut cur_word = String::new();
     let mut tokenized_result = Vec::new();
@@ -65,7 +64,24 @@ fn calculate_doc_freq<'a>(
     Ok(token_freq_map)
 }
 
-pub fn idf(doc_count: usize) {}
+pub fn get_idf_for_query_tokens<'a>(
+    indexed_functions: &Vec<String>,
+    token_freq_map: &HashMap<&'a str, usize>,
+    tokenized_query: &'a Vec<String>,
+) -> anyhow::Result<HashMap<&'a str, f32>> {
+    let total_indexed_functions = indexed_functions.len() as f32;
+    let mut token_weight: HashMap<&str, f32> = HashMap::new();
+    for token in tokenized_query {
+        let token_freq = token_freq_map
+            .get(token.as_str())
+            .expect("query term should have a document frequency");
+        let numerator = total_indexed_functions - *token_freq as f32 + 0.5;
+        let denominator = *token_freq as f32 + 0.5;
+        let idf_t = (1.0 + (numerator / denominator)).ln();
+        token_weight.insert(token, idf_t);
+    }
+    Ok(token_weight)
+}
 
 #[cfg(test)]
 mod tests {
