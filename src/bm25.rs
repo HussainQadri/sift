@@ -16,7 +16,10 @@ pub fn tokenize(text: &str) -> anyhow::Result<Vec<String>> {
             }
         }
     }
-    tokenized_result.push(std::mem::take(&mut cur_word));
+    if !cur_word.is_empty() {
+        cur_word = cur_word.to_lowercase();
+        tokenized_result.push(std::mem::take(&mut cur_word));
+    }
     Ok(tokenized_result)
 }
 
