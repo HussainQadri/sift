@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::index::IndexedFunction;
 pub fn tokenize(text: &str) -> anyhow::Result<Vec<String>> {
     let mut cur_word = String::new();
@@ -19,7 +21,7 @@ pub fn tokenize(text: &str) -> anyhow::Result<Vec<String>> {
 fn calculate_f_i(
     tokenized_query: &Vec<String>,
     i: usize,
-    indexed_functions: &Vec<IndexedFunction>,
+    indexed_function: &IndexedFunction,
 ) -> anyhow::Result<usize> {
     anyhow::ensure!(
         i < tokenized_query.len(),
@@ -30,18 +32,37 @@ fn calculate_f_i(
     let term_needed = tokenized_query.get(i).unwrap();
     // Go through indexed functions, check if term needed is inside each indexed function and
     // calculate frequency
-    for indexed_function in indexed_functions {
-        freq += tokenize(&indexed_function.header)?
+    freq += tokenize(&indexed_function.header)?
+        .iter()
+        .filter(|token| *token == term_needed)
+        .count()
+        + tokenize(&indexed_function.source)?
             .iter()
             .filter(|token| *token == term_needed)
-            .count()
-            + tokenize(&indexed_function.source)?
-                .iter()
-                .filter(|token| *token == term_needed)
-                .count()
-    }
+            .count();
 
     Ok(freq)
+}
+
+/// Go through all the functions and count how many contain the query term AT LEAST ONCE
+fn calculate_doc_freq<'a>(
+    tokenized_query: &'a Vec<String>,
+    indexed_functions: &Vec<IndexedFunction>,
+) -> anyhow::Result<HashMap<&'a str, usize>> {
+    let mut count = 0;
+    let mut token_freq_map: HashMap<&str, usize> = HashMap::new();
+    for (i, token) in tokenized_query.iter().enumerate() {
+        count = 0;
+        for indexed_function in indexed_functions {
+            if calculate_f_i(tokenized_query, i, indexed_function)? > 0 {
+                count += 1;
+            }
+        }
+
+        token_freq_map.insert(token, count);
+    }
+
+    Ok(token_freq_map)
 }
 
 pub fn idf(doc_count: usize) {}
@@ -88,9 +109,10 @@ mod tests {
             },
         ];
 
-        assert_eq!(
-            calculate_f_i(&tokenized_query, 0, &indexed_functions).unwrap(),
-            4
-        );
+        let mut count = 0;
+        for indexed_function in indexed_functions {
+            count += calculate_f_i(&tokenized_query, 0, &indexed_function).unwrap();
+        }
+        assert_eq!(count, 4);
     }
 }
