@@ -38,14 +38,10 @@ fn calculate_f_i(
     let term_needed = tokenized_query.get(i).unwrap();
     // Go through indexed functions, check if term needed is inside each indexed function and
     // calculate frequency
-    freq += tokenize(&indexed_function.header)?
+    freq += tokenize(&indexed_function.source)?
         .iter()
         .filter(|token| *token == term_needed)
-        .count()
-        + tokenize(&indexed_function.source)?
-            .iter()
-            .filter(|token| *token == term_needed)
-            .count();
+        .count();
 
     Ok(freq)
 }
