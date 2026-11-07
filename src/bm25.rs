@@ -70,7 +70,7 @@ fn calculate_doc_freq<'a>(
 pub fn get_idf_for_query_tokens<'a>(
     indexed_functions: &[IndexedFunction],
     token_freq_map: &HashMap<&'a str, usize>,
-    tokenized_query: &'a Vec<String>,
+    tokenized_query: &'a [String],
 ) -> anyhow::Result<HashMap<&'a str, f32>> {
     let total_indexed_functions = indexed_functions.len() as f32;
     let mut token_weight: HashMap<&str, f32> = HashMap::new();
