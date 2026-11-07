@@ -7,7 +7,7 @@ pub fn tokenize(text: &str) -> anyhow::Result<Vec<String>> {
     let mut cur_word = String::new();
     let mut tokenized_result = Vec::new();
     for char in text.chars() {
-        if char.is_alphabetic() || char.is_digit(10) || char.is_alphanumeric() {
+        if char.is_alphabetic() || char.is_ascii_digit() || char.is_alphanumeric() {
             cur_word.push(char);
         } else {
             if !cur_word.is_empty() {
@@ -48,7 +48,7 @@ fn calculate_f_i(
 
 /// Go through all the functions and count how many contain the query term AT LEAST ONCE
 fn calculate_doc_freq<'a>(
-    tokenized_query: &'a Vec<String>,
+    tokenized_query: &'a [String],
     indexed_functions: &Vec<IndexedFunction>,
 ) -> anyhow::Result<HashMap<&'a str, usize>> {
     let mut count = 0;
@@ -68,7 +68,7 @@ fn calculate_doc_freq<'a>(
 }
 
 pub fn get_idf_for_query_tokens<'a>(
-    indexed_functions: &Vec<IndexedFunction>,
+    indexed_functions: &[IndexedFunction],
     token_freq_map: &HashMap<&'a str, usize>,
     tokenized_query: &'a Vec<String>,
 ) -> anyhow::Result<HashMap<&'a str, f32>> {
@@ -100,7 +100,7 @@ pub fn get_function_lengths(
 }
 
 pub fn get_average_function_length(function_lengths: HashMap<usize, usize>) -> anyhow::Result<f32> {
-    anyhow::ensure!(function_lengths.len() > 0, "no indexed functions exist");
+    anyhow::ensure!(!function_lengths.is_empty(), "no indexed functions exist");
     let mut total_function_length = 0;
     for function_length in function_lengths.values() {
         total_function_length += function_length;
@@ -125,8 +125,7 @@ pub fn calculate_bm25_score(
         let denominator = calculate_f_i(tokenized_query, i, indexed_function)? as f32
             + K_1
                 * (1.0 - B
-                    + B * (tokenize(&indexed_function.source)?.len() as f32
-                        / average_length as f32));
+                    + B * (tokenize(&indexed_function.source)?.len() as f32 / average_length));
         score += idf_t * (numerator / denominator);
     }
     Ok(score)

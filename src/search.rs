@@ -1,3 +1,4 @@
+use crate::bm25;
 use crate::cli;
 use crate::cli_output;
 use crate::embeddings_generator;
