@@ -47,9 +47,9 @@ fn calculate_f_i(
 }
 
 /// Go through all the functions and count how many contain the query term AT LEAST ONCE
-fn calculate_doc_freq<'a>(
+pub fn calculate_doc_freq<'a>(
     tokenized_query: &'a [String],
-    indexed_functions: &Vec<IndexedFunction>,
+    indexed_functions: &[IndexedFunction],
 ) -> anyhow::Result<HashMap<&'a str, usize>> {
     let mut count = 0;
     let mut token_freq_map: HashMap<&str, usize> = HashMap::new();
