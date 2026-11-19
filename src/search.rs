@@ -69,6 +69,41 @@ pub fn load_runtime_index() -> anyhow::Result<hnsw::HnswIndex> {
     }
     Ok(index)
 }
+pub fn search_using_bm25<'a>(
+    query_text: &str,
+    indexed_functions: &'a [IndexedFunction],
+    top_k_results: usize,
+) -> anyhow::Result<Vec<(&'a IndexedFunction, f32)>> {
+    if query_text.trim().is_empty() {
+        anyhow::bail!("query text is empty");
+    }
+
+    let tokenized_query = bm25::tokenize(query_text)?;
+    let token_freq_map = bm25::calculate_doc_freq(&tokenized_query, indexed_functions)?;
+    let idf_map =
+        bm25::get_idf_for_query_tokens(indexed_functions, &token_freq_map, &tokenized_query)?;
+
+    let function_lengths = bm25::get_function_lengths(indexed_functions)?;
+    let average_function_length = bm25::get_average_function_length(function_lengths)?;
+    let mut result: Vec<(&IndexedFunction, f32)> = indexed_functions
+        .iter()
+        .map(|indexed_function| {
+            let function_bm25_score = bm25::calculate_bm25_score(
+                indexed_function,
+                &tokenized_query,
+                &idf_map,
+                average_function_length,
+            )?;
+
+            Ok((indexed_function, function_bm25_score))
+        })
+        .collect::<anyhow::Result<_>>()?;
+
+    result.sort_by(|a, b| b.1.total_cmp(&a.1));
+    result.truncate(top_k_results);
+
+    Ok(result)
+}
 pub fn search_using_hnsw<'a>(
     index: &hnsw::HnswIndex,
     query: &[f32],
