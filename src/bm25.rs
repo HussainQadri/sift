@@ -51,10 +51,9 @@ pub fn calculate_doc_freq<'a>(
     tokenized_query: &'a [String],
     indexed_functions: &[IndexedFunction],
 ) -> anyhow::Result<HashMap<&'a str, usize>> {
-    let mut count = 0;
     let mut token_freq_map: HashMap<&str, usize> = HashMap::new();
     for (i, token) in tokenized_query.iter().enumerate() {
-        count = 0;
+        let mut count = 0;
         for indexed_function in indexed_functions {
             if calculate_f_i(tokenized_query, i, indexed_function)? > 0 {
                 count += 1;
