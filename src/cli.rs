@@ -36,6 +36,9 @@ pub struct Cli {
     #[arg(long)]
     pub exact: bool,
 
+    #[arg(long)]
+    pub bm25: bool,
+
     #[command(subcommand)]
     pub commands: Option<Commands>,
 }

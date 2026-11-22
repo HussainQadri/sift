@@ -28,6 +28,8 @@ pub fn query_search(args: cli::Cli) -> anyhow::Result<()> {
     let query = embeddings_generator::create_query_embedding(&model, &keywords)?;
     let search_results = if args.exact {
         search_using_brute_force(&query, &loaded_indexed_functions, top_k_results)?
+    } else if args.bm25 {
+        search_using_bm25(&keywords, &loaded_indexed_functions, top_k_results)?
     } else {
         let index = load_runtime_index()?;
         search_using_hnsw(&index, &query, &loaded_indexed_functions, top_k_results)?
@@ -78,7 +80,7 @@ pub fn search_using_bm25<'a>(
         anyhow::bail!("query text is empty");
     }
 
-    let tokenized_query = bm25::tokenize(query_text)?;
+    let tokenized_query = bm25::tokenize(&query_text)?;
     let token_freq_map = bm25::calculate_doc_freq(&tokenized_query, indexed_functions)?;
     let idf_map =
         bm25::get_idf_for_query_tokens(indexed_functions, &token_freq_map, &tokenized_query)?;
