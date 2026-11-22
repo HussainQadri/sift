@@ -80,7 +80,7 @@ pub fn search_using_bm25<'a>(
         anyhow::bail!("query text is empty");
     }
 
-    let tokenized_query = bm25::tokenize(&query_text)?;
+    let tokenized_query = bm25::tokenize(query_text)?;
     let token_freq_map = bm25::calculate_doc_freq(&tokenized_query, indexed_functions)?;
     let idf_map =
         bm25::get_idf_for_query_tokens(indexed_functions, &token_freq_map, &tokenized_query)?;
